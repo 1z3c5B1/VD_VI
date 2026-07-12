@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.pyo
+users.db
+outputs/
+static/generated/
+model_cache/
+venv/
+.env

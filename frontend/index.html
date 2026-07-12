@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VD AI - Генератор изображений и видео</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-box">
+            <div class="auth-logo">◆</div>
+            <h1 class="auth-title">VD AI</h1>
+            <p class="auth-subtitle">Генератор изображений, видео и чат с ИИ</p>
+            <div class="auth-tabs">
+                <button class="auth-tab active" onclick="switchAuthTab('login')">Вход</button>
+                <button class="auth-tab" onclick="switchAuthTab('register')">Регистрация</button>
+            </div>
+            <form id="loginForm" onsubmit="event.preventDefault(); authLogin()">
+                <input type="text" id="loginUsername" placeholder="Имя пользователя" required>
+                <input type="password" id="loginPassword" placeholder="Пароль" required>
+                <button type="submit" class="btn btn-primary auth-btn">Войти</button>
+                <p class="auth-error" id="authError"></p>
+            </form>
+            <form id="registerForm" class="hidden" onsubmit="event.preventDefault(); authRegister()">
+                <input type="text" id="regUsername" placeholder="Имя пользователя" required>
+                <input type="password" id="regPassword" placeholder="Пароль (мин. 4 символа)" required minlength="4">
+                <button type="submit" class="btn btn-primary auth-btn">Зарегистрироваться</button>
+                <p class="auth-error" id="regError"></p>
+            </form>
+            <div class="auth-loader hidden" id="authLoader"><div class="spinner"></div></div>
+        </div>
+    </div>
+
+    <header>
+        <div class="logo">
+            <span class="logo-icon">◆</span>
+            <h1>VD AI</h1>
+            <span class="subtitle">Генерация изображений и видео</span>
+        </div>
+        <div class="header-right">
+            <div class="model-status">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">Проверка...</span>
+            </div>
+            <div class="user-menu" id="userMenu">
+                <span id="userName"></span>
+                <button class="btn btn-small" onclick="authLogout()">Выйти</button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="image">Изображение</button>
+            <button class="tab-btn" data-tab="video">Видео</button>
+            <button class="tab-btn" data-tab="chat">Чат</button>
+            <button class="tab-btn" data-tab="gallery">Галерея</button>
+        </div>
+
+        <!-- TAB: Image Generation -->
+        <section id="tab-image" class="tab-content active">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Генерация изображений</h2>
+                    <span class="badge">VDAI</span>
+                </div>
+                <div class="form-group">
+                    <label for="prompt">Промпт (описание)</label>
+                    <textarea id="prompt" rows="3" placeholder="Опишите, что хотите увидеть...">космический пейзаж, туманность, звезды, неон</textarea>
+                </div>
+                <div class="form-group">
+                    <label for="negativePrompt">Негативный промпт</label>
+                    <textarea id="negativePrompt" rows="2" placeholder="Что исключить из изображения...">blurry, ugly, deformed, bad anatomy</textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="width">Ширина</label>
+                        <select id="width">
+                            <option value="768">768px</option>
+                            <option value="1024" selected>1024px</option>
+                            <option value="1536">1536px</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="height">Высота</label>
+                        <select id="height">
+                            <option value="768">768px</option>
+                            <option value="1024" selected>1024px</option>
+                            <option value="1536">1536px</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="steps">Шаги</label>
+                        <input type="number" id="steps" value="25" min="10" max="50">
+                    </div>
+                    <div class="form-group">
+                        <label for="guidance">Guidance</label>
+                        <input type="number" id="guidance" value="7.5" min="1" max="20" step="0.5">
+                    </div>
+                    <div class="form-group">
+                        <label for="seed">Seed (0 = random)</label>
+                        <input type="number" id="seed" value="0" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Стиль</label>
+                    <div class="style-tags" id="styleTags">
+                        <button class="style-tag" data-style="">None</button>
+                        <button class="style-tag" data-style="cinematic">Cinematic</button>
+                        <button class="style-tag" data-style="anime">Anime</button>
+                        <button class="style-tag" data-style="photorealistic">Photo</button>
+                        <button class="style-tag" data-style="fantasy art">Fantasy</button>
+                        <button class="style-tag" data-style="oil painting">Oil painting</button>
+                        <button class="style-tag" data-style="3D render">3D render</button>
+                        <button class="style-tag" data-style="pixel art">Pixel art</button>
+                        <button class="style-tag" data-style="sketch">Sketch</button>
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="generateImageBtn" onclick="generateImage()">
+                    <span class="btn-icon">✦</span> Сгенерировать
+                </button>
+            </div>
+            <div class="panel result-panel" id="imageResult">
+                <div class="panel-header">
+                    <h2>Результат</h2>
+                </div>
+                <div class="result-placeholder" id="imagePlaceholder">
+                    <span class="placeholder-icon">🖼</span>
+                    <p>Нажмите "Сгенерировать"</p>
+                </div>
+                <div class="result-content hidden" id="imageResultContent">
+                    <img id="generatedImage" src="" alt="Generated">
+                    <div class="result-info" id="imageInfo"></div>
+                    <div class="result-actions">
+                        <button class="btn btn-small" onclick="downloadImage()">⬇ Скачать</button>
+                        <button class="btn btn-small" onclick="regenerateImage()">🔄 Перегенерировать</button>
+                    </div>
+                </div>
+                <div class="loader hidden" id="imageLoader">
+                    <div class="spinner"></div>
+                    <p>Генерация... это может занять 10-30 секунд</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: Video Generation -->
+        <section id="tab-video" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Генерация видео</h2>
+                    <span class="badge">VDAI</span>
+                </div>
+                <div class="form-group">
+                    <label for="videoPrompt">Промпт (описание)</label>
+                    <textarea id="videoPrompt" rows="3" placeholder="Опишите сцену...">закат на пляже, волны</textarea>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="videoDuration">Длительность (сек)</label>
+                        <input type="number" id="videoDuration" value="6" min="4" max="25">
+                    </div>
+                    <div class="form-group">
+                        <label for="videoFps">FPS</label>
+                        <input type="number" id="videoFps" value="10" min="5" max="15">
+                    </div>
+                    <div class="form-group">
+                        <label for="videoSeed">Seed</label>
+                        <input type="number" id="videoSeed" value="0" min="0">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="generateVideo()">
+                    <span class="btn-icon">▶</span> Сгенерировать видео
+                </button>
+            </div>
+            <div class="panel result-panel" id="videoResult">
+                <div class="panel-header">
+                    <h2>Результат</h2>
+                </div>
+                <div class="result-placeholder" id="videoPlaceholder">
+                    <span class="placeholder-icon">🎬</span>
+                    <p>Нажмите "Сгенерировать видео"</p>
+                </div>
+                <div class="result-content hidden" id="videoResultContent">
+                    <video id="generatedVideo" controls>
+                        <source src="" type="video/mp4">
+                    </video>
+                    <div class="result-info" id="videoInfo"></div>
+                    <div class="result-actions">
+                        <button class="btn btn-small" onclick="downloadVideo()">⬇ Скачать</button>
+                    </div>
+                </div>
+                <div class="loader hidden" id="videoLoader">
+                    <div class="spinner"></div>
+                    <p>Генерация видео... кадр за кадром</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: Chat -->
+        <section id="tab-chat" class="tab-content">
+            <div class="panel chat-panel">
+                <div class="panel-header">
+                    <h2>Чат с ИИ</h2>
+                    <span class="badge">free</span>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="chat-msg assistant">
+                        <div class="msg-content">Привет! Я ИИ-ассистент. Спрашивай что угодно!</div>
+                    </div>
+                </div>
+                <div class="chat-controls">
+                    <select id="chatModel" class="chat-model-select">
+                        <option value="openai">OpenAI (GPT)</option>
+                        <option value="deepseek" selected>DeepSeek</option>
+                        <option value="claude">Claude</option>
+                        <option value="gemini">Gemini</option>
+                    </select>
+                </div>
+                <div class="chat-input-row">
+                    <input type="text" id="chatInput" placeholder="Напиши сообщение..." onkeydown="if(event.key==='Enter') sendChat()">
+                    <button class="btn btn-primary" onclick="sendChat()">Отправить</button>
+                </div>
+                <div class="loader hidden" id="chatLoader">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: Gallery -->
+        <section id="tab-gallery" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2>Галерея</h2>
+                </div>
+                <div class="gallery-grid" id="galleryGrid">
+                    <p class="gallery-empty">Пока ничего нет. Сгенерируйте изображение или видео.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>VD - AI v1.0</p>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: vd-ai
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: POLLINATIONS_KEY
+        value: sk_TxyHaOVGAzdSY8FIk1bRoAN6dA47TBuO
+
