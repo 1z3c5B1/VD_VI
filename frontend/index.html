@@ -202,7 +202,7 @@
             <div class="panel chat-panel">
                 <div class="panel-header">
                     <h2>Чат с ИИ</h2>
-                    <span class="badge">free</span>
+                    <span class="badge badge-free">FREE</span>
                 </div>
                 <div class="chat-messages" id="chatMessages">
                     <div class="chat-msg assistant">
@@ -211,7 +211,10 @@
                 </div>
                 <div class="chat-controls">
                     <select id="chatModel" class="chat-model-select">
-                        <option value="deepseek" selected>VDAI (DeepSeek)</option>
+                        <option value="vdai" selected>VDAI</option>
+                        <option value="openai">OpenAI (GPT)</option>
+                        <option value="llama">Llama</option>
+                        <option value="mistral">Mistral</option>
                     </select>
                 </div>
                 <div class="chat-input-row">

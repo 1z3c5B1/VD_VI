@@ -1,4 +1,5 @@
 import requests
+import requests.utils
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import FileResponse
@@ -130,25 +131,33 @@ async def api_me(authorization: Optional[str] = Header(None)):
     return result
 
 
+CHAT_MODELS = {
+    "vdai": "deepseek",
+    "openai": "openai",
+    "llama": "llama",
+    "mistral": "mistral",
+}
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     try:
-        messages = [{"role": "system", "content": req.system_prompt}]
-        messages += req.history + [{"role": "user", "content": req.message}]
-        resp = requests.post(
-            "https://gen.pollinations.ai/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {POLLINATIONS_KEY}",
-                "Content-Type": "application/json"
-            },
-            json={"model": req.model, "messages": messages, "max_tokens": 800},
+        api_model = CHAT_MODELS.get(req.model, "deepseek")
+        full_prompt = f"{req.system_prompt}\n\n"
+        for msg in req.history:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            full_prompt += f"{role}: {content}\n"
+        full_prompt += f"user: {req.message}\nassistant:"
+
+        resp = requests.get(
+            f"https://gen.pollinations.ai/text/{requests.utils.quote(full_prompt)}",
+            params={"model": api_model, "max_tokens": 800},
+            headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
             timeout=60
         )
         if resp.status_code != 200:
             raise HTTPException(status_code=502, detail=f"API error: {resp.text[:200]}")
-        data = resp.json()
-        reply = data["choices"][0]["message"]["content"]
-        return {"reply": reply}
+        return {"reply": resp.text.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
