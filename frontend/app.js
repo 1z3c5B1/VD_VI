@@ -5,7 +5,7 @@ let authToken = localStorage.getItem('vdai_token');
 function switchAuthTab(tab) {
     document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('#authScreen form').forEach(f => f.classList.add('hidden'));
-    document.querySelector(`.auth-tab[onclick*="${tab}"]`).classList.add('active');
+    document.querySelector(`.auth-tab[data-auth="${tab}"]`).classList.add('active');
     document.getElementById(tab === 'login' ? 'loginForm' : 'registerForm').classList.remove('hidden');
     document.getElementById('authError').textContent = '';
     document.getElementById('regError').textContent = '';

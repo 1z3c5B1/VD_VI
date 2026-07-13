@@ -13,8 +13,8 @@
             <h1 class="auth-title">VD AI</h1>
             <p class="auth-subtitle">Генератор изображений, видео и чат с ИИ</p>
             <div class="auth-tabs">
-                <button class="auth-tab active" onclick="switchAuthTab('login')">Вход</button>
-                <button class="auth-tab" onclick="switchAuthTab('register')">Регистрация</button>
+                <button class="auth-tab active" data-auth="login" onclick="switchAuthTab('login')">Вход</button>
+                <button class="auth-tab" data-auth="register" onclick="switchAuthTab('register')">Регистрация</button>
             </div>
             <form id="loginForm" onsubmit="event.preventDefault(); authLogin()">
                 <input type="text" id="loginUsername" placeholder="Имя пользователя" required>
@@ -149,7 +149,7 @@
             <div class="panel">
                 <div class="panel-header">
                     <h2>Генерация видео</h2>
-                    <span class="badge">VDAI</span>
+                    <span class="badge badge-beta">BETA</span>
                 </div>
                 <div class="form-group">
                     <label for="videoPrompt">Промпт (описание)</label>
@@ -211,14 +211,11 @@
                 </div>
                 <div class="chat-controls">
                     <select id="chatModel" class="chat-model-select">
-                        <option value="openai">OpenAI (GPT)</option>
-                        <option value="deepseek" selected>DeepSeek</option>
-                        <option value="claude">Claude</option>
-                        <option value="gemini">Gemini</option>
+                        <option value="deepseek" selected>VDAI (DeepSeek)</option>
                     </select>
                 </div>
                 <div class="chat-input-row">
-                    <input type="text" id="chatInput" placeholder="Напиши сообщение..." onkeydown="if(event.key==='Enter') sendChat()">
+                    <textarea id="chatInput" placeholder="Напиши сообщение..." rows="2" onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendChat(); }"></textarea>
                     <button class="btn btn-primary" onclick="sendChat()">Отправить</button>
                 </div>
                 <div class="loader hidden" id="chatLoader">
