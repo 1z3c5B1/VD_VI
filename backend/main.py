@@ -145,7 +145,7 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
         raise HTTPException(
             status_code=502,
-            detail="Редактирование изображений требует платную модель (Pollinations). Попробуйте генерацию вместо этого."
+            detail="Не удалось отредактировать. Проверьте баланс Pollinations или попробуйте другой промпт."
         )
 
     except HTTPException:
@@ -155,58 +155,71 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
 
 async def _edit_with_pollinations(image_bytes: bytes, prompt: str, width: int, height: int):
-    """Edit image via POST /v1/images/edits with multiple models"""
+    """Edit image via media upload + GET /image/{prompt}?model=klein"""
     try:
-        files = {"image": ("input.png", image_bytes, "image/png")}
+        import io
+        from PIL import Image
 
-        for model in ["kontext", "klein", "nanobanana"]:
-            data = {"prompt": prompt, "model": model}
+        img = Image.open(io.BytesIO(image_bytes))
+        img = img.convert("RGB")
+        img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        clean_bytes = buf.getvalue()
 
-            print(f"[Edit] Trying model={model}...")
-            resp = await asyncio.to_thread(
-                requests.post,
-                "https://gen.pollinations.ai/v1/images/edits",
+        print(f"[Edit] Uploading to media...")
+        upload_resp = await asyncio.to_thread(
+            requests.post,
+            "https://media.pollinations.ai/upload",
+            headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
+            files={"file": ("input.jpg", clean_bytes, "image/jpeg")},
+            timeout=60
+        )
+
+        if upload_resp.status_code != 200:
+            print(f"[Edit] Upload failed: {upload_resp.status_code} {upload_resp.text[:200]}")
+            return None
+
+        media_url = upload_resp.json().get("url", "")
+        print(f"[Edit] Uploaded: {media_url}")
+
+        if not media_url:
+            return None
+
+        encoded_prompt = requests.utils.quote(prompt)
+        models_to_try = ["klein", "kontext"]
+
+        for model in models_to_try:
+            img_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?model={model}&width={width}&height={height}&image={requests.utils.quote(media_url)}"
+
+            print(f"[Edit] Trying GET /image with model={model}...")
+            img_resp = await asyncio.to_thread(
+                requests.get,
+                img_url,
                 headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
-                files=files,
-                data=data,
                 timeout=120
             )
 
-            print(f"[Edit] Status: {resp.status_code}")
+            ct = img_resp.headers.get("content-type", "none")
+            print(f"[Edit] Status: {img_resp.status_code}, CT: {ct}, Size: {len(img_resp.content)}")
 
-            if resp.status_code == 200:
-                result = resp.json()
-                if "data" in result and len(result["data"]) > 0:
-                    item = result["data"][0]
-                    if "b64_json" in item and item["b64_json"]:
-                        img_bytes = base64.b64decode(item["b64_json"])
-                        if len(img_bytes) > 5000:
-                            filename = f"edit_{uuid.uuid4().hex}.png"
-                            filepath = STATIC_DIR / filename
-                            with open(filepath, "wb") as f:
-                                f.write(img_bytes)
-                            print(f"[Edit] Saved ({model}): {filename} ({len(img_bytes)} bytes)")
-                            return {"url": f"/static/generated/{filename}", "filename": filename}
-                    elif "url" in item:
-                        img_resp = await asyncio.to_thread(requests.get, item["url"], timeout=60)
-                        if img_resp.status_code == 200 and len(img_resp.content) > 5000:
-                            filename = f"edit_{uuid.uuid4().hex}.png"
-                            filepath = STATIC_DIR / filename
-                            with open(filepath, "wb") as f:
-                                f.write(img_resp.content)
-                            print(f"[Edit] Saved from URL ({model}): {filename}")
-                            return {"url": f"/static/generated/{filename}", "filename": filename}
+            if img_resp.status_code == 200 and "image" in ct and len(img_resp.content) > 5000:
+                filename = f"edit_{uuid.uuid4().hex}.png"
+                filepath = STATIC_DIR / filename
+                with open(filepath, "wb") as f:
+                    f.write(img_resp.content)
+                print(f"[Edit] Saved ({model}): {filename} ({len(img_resp.content)} bytes)")
+                return {"url": f"/static/generated/{filename}", "filename": filename}
             else:
-                print(f"[Edit] Error: {resp.text[:200]}")
-                if resp.status_code == 402:
-                    print(f"[Edit] Model {model} requires payment, trying next...")
-                    continue
+                print(f"[Edit] Failed ({model}): {img_resp.text[:200]}")
 
         print("[Edit] All models failed")
         return None
 
     except Exception as e:
         print(f"[Edit] Exception: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
