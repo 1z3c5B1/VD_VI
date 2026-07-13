@@ -9,4 +9,6 @@ services:
         value: sk_qGTE6yG58UawexsyAcoQwpi0CDGWaF2o
       - key: POLLINATIONS_PK
         value: pk_j1VCcxAp2GYeMzyx
+      - key: HF_TOKEN
+        value: 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
 

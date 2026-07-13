@@ -13,7 +13,7 @@ from typing import Optional
 
 from backend.models.image_generator import ImageGenerator
 from backend.models.video_generator import VideoGenerator
-from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK
+from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK, HF_TOKEN
 from backend.auth import register, login, verify_token
 
 image_generator = ImageGenerator()
@@ -139,19 +139,87 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
                 en_prompt = f"edit the image: {req.prompt}. Apply the effect to the ENTIRE image."
                 break
 
+        result = await _edit_with_hf(image_bytes, en_prompt, req.width, req.height)
+        if result:
+            return result
+
         result = await _edit_with_pollinations(image_bytes, en_prompt, req.width, req.height)
         if result:
             return result
 
         raise HTTPException(
             status_code=502,
-            detail="Не удалось отредактировать. Проверьте баланс Pollinations или попробуйте другой промпт."
+            detail="Не удалось отредактировать. Попробуйте другой промпт."
         )
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int):
+    """Edit image via Hugging Face Inference API (free tier: $0.10/month)"""
+    try:
+        import io
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(image_bytes))
+        img = img.convert("RGB")
+        img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        clean_bytes = buf.getvalue()
+
+        b64_image = base64.b64encode(clean_bytes).decode()
+
+        models = [
+            "timbrooks/instruct-pix2pix",
+            "black-forest-labs/FLUX.1-Kontext-dev",
+        ]
+
+        for model in models:
+            print(f"[Edit/HF] Trying {model}...")
+            try:
+                resp = await asyncio.to_thread(
+                    requests.post,
+                    f"https://api-inference.huggingface.co/models/{model}",
+                    headers={"Authorization": f"Bearer {HF_TOKEN}"},
+                    json={
+                        "inputs": b64_image,
+                        "parameters": {
+                            "prompt": prompt,
+                            "guidance_scale": 7.5,
+                            "num_inference_steps": 30,
+                        },
+                    },
+                    timeout=120
+                )
+
+                ct = resp.headers.get("content-type", "none")
+                print(f"[Edit/HF] {model}: status={resp.status_code}, ct={ct}, size={len(resp.content)}")
+
+                if resp.status_code == 200 and "image" in ct and len(resp.content) > 5000:
+                    filename = f"edit_{uuid.uuid4().hex}.png"
+                    filepath = STATIC_DIR / filename
+                    with open(filepath, "wb") as f:
+                        f.write(resp.content)
+                    print(f"[Edit/HF] Saved ({model}): {filename}")
+                    return {"url": f"/static/generated/{filename}", "filename": filename}
+                elif resp.status_code == 503:
+                    print(f"[Edit/HF] Model loading, trying next...")
+                    continue
+                else:
+                    print(f"[Edit/HF] Failed: {resp.text[:200]}")
+            except Exception as e:
+                print(f"[Edit/HF] Error {model}: {e}")
+                continue
+
+        return None
+
+    except Exception as e:
+        print(f"[Edit/HF] Exception: {e}")
+        return None
 
 
 async def _edit_with_pollinations(image_bytes: bytes, prompt: str, width: int, height: int):
