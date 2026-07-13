@@ -1,7 +1,6 @@
 import sqlite3
 import hashlib
 import secrets
-import json
 from pathlib import Path
 
 DB_PATH = Path(__file__).resolve().parent.parent / "users.db"
@@ -10,8 +9,19 @@ DB_PATH = Path(__file__).resolve().parent.parent / "users.db"
 def _get_db():
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
-    conn.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT UNIQUE, pass_hash TEXT)")
-    conn.execute("CREATE TABLE IF NOT EXISTS sessions (token TEXT UNIQUE, user_id INTEGER)")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY,
+            username TEXT UNIQUE,
+            pass_hash TEXT
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT UNIQUE,
+            user_id INTEGER
+        )
+    """)
     conn.commit()
     return conn
 

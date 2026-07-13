@@ -4,6 +4,15 @@ let chatHistory = [];
 let lastImageResult = null;
 let lastVideoResult = null;
 
+// Debounce helper
+function debounce(fn, delay) {
+    let timeoutId;
+    return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), delay);
+    };
+}
+
 // ---- Auth ----
 function switchAuthTab(tab) {
     document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
@@ -17,15 +26,24 @@ function switchAuthTab(tab) {
 async function authLogin() {
     const username = document.getElementById('loginUsername').value.trim();
     const password = document.getElementById('loginPassword').value;
+    
+    if (!username || !password) {
+        document.getElementById('authError').textContent = 'Заполните все поля';
+        return;
+    }
+    
     document.getElementById('authError').textContent = '';
     document.getElementById('authLoader').classList.remove('hidden');
+    
     try {
         const res = await fetch(`${API_BASE}/api/login`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail);
+        if (!res.ok) throw new Error(data.detail || 'Ошибка входа');
+        
         authToken = data.token;
         localStorage.setItem('vdai_token', authToken);
         document.getElementById('authScreen').style.display = 'none';
@@ -42,15 +60,28 @@ async function authLogin() {
 async function authRegister() {
     const username = document.getElementById('regUsername').value.trim();
     const password = document.getElementById('regPassword').value;
+    
+    if (!username || !password) {
+        document.getElementById('regError').textContent = 'Заполните все поля';
+        return;
+    }
+    if (password.length < 4) {
+        document.getElementById('regError').textContent = 'Пароль минимум 4 символа';
+        return;
+    }
+    
     document.getElementById('regError').textContent = '';
     document.getElementById('authLoader').classList.remove('hidden');
+    
     try {
         const res = await fetch(`${API_BASE}/api/register`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.detail);
+        if (!res.ok) throw new Error(data.detail || 'Ошибка регистрации');
+        
         authToken = data.token;
         localStorage.setItem('vdai_token', authToken);
         document.getElementById('authScreen').style.display = 'none';
@@ -71,6 +102,8 @@ function authLogout() {
     document.getElementById('userMenu').classList.remove('active');
     document.getElementById('loginUsername').value = '';
     document.getElementById('loginPassword').value = '';
+    document.getElementById('regUsername').value = '';
+    document.getElementById('regPassword').value = '';
 }
 
 async function checkAuth() {
@@ -125,7 +158,10 @@ document.querySelectorAll('.style-tag').forEach(tag => {
 function onEditFileSelect(event) {
     const file = event.target.files[0];
     if (!file) return;
-    if (file.size > 10 * 1024 * 1024) { alert('Файл слишком большой (макс 10MB)'); return; }
+    if (file.size > 10 * 1024 * 1024) { 
+        alert('Файл слишком большой (макс 10MB)'); 
+        return; 
+    }
     const reader = new FileReader();
     reader.onload = e => {
         document.getElementById('uploadArea').classList.add('hidden');
@@ -166,7 +202,7 @@ function getActiveStyle() {
 async function generateImage() {
     const prompt = document.getElementById('prompt').value.trim();
     if (!prompt) return alert('Введите промпт');
-
+    
     const loader = document.getElementById('imageLoader');
     const placeholder = document.getElementById('imagePlaceholder');
     const result = document.getElementById('imageResultContent');
@@ -185,14 +221,17 @@ async function generateImage() {
 
         const res = await fetch(`${API_BASE}/api/generate/image`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${authToken}` 
+            },
             body: JSON.stringify({
                 prompt: fullPrompt,
                 negative_prompt: document.getElementById('negativePrompt').value || null,
                 width: parseInt(document.getElementById('width').value),
                 height: parseInt(document.getElementById('height').value),
                 guidance_scale: parseFloat(document.getElementById('guidance').value) || 7.5,
-                num_inference_steps: parseInt(document.getElementById('steps').value) || 30,
+                num_inference_steps: parseInt(document.getElementById('steps').value) || 25,
                 seed: seed || null,
             }),
         });
@@ -263,7 +302,10 @@ async function editImage() {
     try {
         const res = await fetch(`${API_BASE}/api/generate/edit-image`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${authToken}` 
+            },
             body: JSON.stringify({
                 image_data: previewImg.src,
                 prompt: editPrompt,
@@ -313,17 +355,23 @@ async function generateVideo() {
     placeholder.classList.add('hidden');
     result.classList.add('hidden');
     btn.disabled = true;
-    btn.textContent = 'Генерация видео...';
+    const modelLabel = document.getElementById('videoModel').selectedOptions[0].text;
+    btn.textContent = `Генерация (${modelLabel})...`;
+    document.querySelector('#tab-video .loader p').textContent = `Генерация видео через ${modelLabel}... (может занять до 3 мин)`;
 
     try {
         const seed = parseInt(document.getElementById('videoSeed').value) || null;
         const duration = parseInt(document.getElementById('videoDuration').value) || 6;
         const fps = parseInt(document.getElementById('videoFps').value) || 10;
+        const model = document.getElementById('videoModel').value;
 
         const res = await fetch(`${API_BASE}/api/generate/video`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, seed: seed || null, duration, fps }),
+            headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${authToken}` 
+            },
+            body: JSON.stringify({ prompt, seed: seed || null, duration, fps, model }),
         });
 
         if (!res.ok) {
@@ -339,7 +387,7 @@ async function generateVideo() {
         video.load();
 
         document.getElementById('videoInfo').textContent =
-            `${data.duration} сек | ${data.frames} кадров | ${data.fps} FPS | Seed: ${data.seed}`;
+            `${data.model || 'unknown'} | ${data.duration} сек | Seed: ${data.seed}`;
 
         loader.classList.add('hidden');
         result.classList.remove('hidden');
@@ -366,18 +414,23 @@ async function sendChat() {
     const input = document.getElementById('chatInput');
     const msg = input.value.trim();
     if (!msg) return;
+    if (!authToken) return alert('Войдите, чтобы использовать чат');
 
     input.value = '';
     addChatMsg('user', msg, 'Вы');
     chatHistory.push({ role: 'user', content: msg });
 
     const loader = document.getElementById('chatLoader');
+    const sendBtn = document.querySelector('#tab-chat .chat-input-row .btn');
     loader.classList.remove('hidden');
+    sendBtn.disabled = true;
 
     try {
         const model = document.getElementById('chatModel').value;
-        const headers = { 'Content-Type': 'application/json' };
-        if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+        const headers = { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        };
 
         const res = await fetch(`${API_BASE}/api/chat`, {
             method: 'POST', headers,
@@ -399,6 +452,7 @@ async function sendChat() {
         addChatMsg('assistant', 'Ошибка: ' + err.message, 'Система');
     } finally {
         loader.classList.add('hidden');
+        sendBtn.disabled = false;
     }
 }
 
@@ -440,7 +494,13 @@ async function loadGallery() {
             if (file.type === 'video') {
                 item.innerHTML = `
                     <video src="${API_BASE}${file.url}" muted loop></video>
-                    <div class="gallery-item-overlay">▶ Видео</div>
+                    <div class="gallery-item-overlay">
+                        <span>▶ ${file.filename}</span>
+                        <div class="gallery-actions">
+                            <button class="gal-btn" onclick="event.stopPropagation(); downloadFile('${file.url}', '${file.filename}')" title="Скачать">⬇</button>
+                            <button class="gal-btn" onclick="event.stopPropagation(); deleteFile('${file.filename}')" title="Удалить">✕</button>
+                        </div>
+                    </div>
                 `;
                 item.addEventListener('click', () => {
                     const vid = item.querySelector('video');
@@ -453,7 +513,13 @@ async function loadGallery() {
                 item.appendChild(img);
                 const overlay = document.createElement('div');
                 overlay.className = 'gallery-item-overlay';
-                overlay.textContent = file.filename;
+                overlay.innerHTML = `
+                    <span>${file.filename}</span>
+                    <div class="gallery-actions">
+                        <button class="gal-btn" onclick="event.stopPropagation(); downloadFile('${file.url}', '${file.filename}')" title="Скачать">⬇</button>
+                        <button class="gal-btn" onclick="event.stopPropagation(); deleteFile('${file.filename}')" title="Удалить">✕</button>
+                    </div>
+                `;
                 item.appendChild(overlay);
                 item.addEventListener('click', () => window.open(`${API_BASE}${file.url}`, '_blank'));
             }
@@ -461,6 +527,27 @@ async function loadGallery() {
         });
     } catch {
         grid.innerHTML = '<p class="gallery-empty">Сервер недоступен</p>';
+    }
+}
+
+async function downloadFile(url, filename) {
+    const a = document.createElement('a');
+    a.href = `${API_BASE}${url}`;
+    a.download = filename;
+    a.click();
+}
+
+async function deleteFile(filename) {
+    if (!confirm(`Удалить ${filename}?`)) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/gallery/${filename}`, { 
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        if (!res.ok) throw new Error('Не удалось удалить');
+        loadGallery();
+    } catch (err) {
+        alert('Ошибка удаления: ' + err.message);
     }
 }
 

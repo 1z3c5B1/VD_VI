@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VD AI - Генерация и редактирование</title>
+    <title>VD AI - Генерация изображений и видео</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -17,14 +17,14 @@
                 <button class="auth-tab" data-auth="register" onclick="switchAuthTab('register')">Регистрация</button>
             </div>
             <form id="loginForm" onsubmit="event.preventDefault(); authLogin()">
-                <input type="text" id="loginUsername" placeholder="Имя пользователя" required>
-                <input type="password" id="loginPassword" placeholder="Пароль" required>
+                <input type="text" id="loginUsername" placeholder="Имя пользователя" required autocomplete="username">
+                <input type="password" id="loginPassword" placeholder="Пароль" required autocomplete="current-password">
                 <button type="submit" class="btn btn-primary auth-btn">Войти</button>
                 <p class="auth-error" id="authError"></p>
             </form>
             <form id="registerForm" class="hidden" onsubmit="event.preventDefault(); authRegister()">
-                <input type="text" id="regUsername" placeholder="Имя пользователя" required>
-                <input type="password" id="regPassword" placeholder="Пароль (мин. 4 символа)" required minlength="4">
+                <input type="text" id="regUsername" placeholder="Имя пользователя" required autocomplete="username">
+                <input type="password" id="regPassword" placeholder="Пароль (мин. 4 символа)" required minlength="4" autocomplete="new-password">
                 <button type="submit" class="btn btn-primary auth-btn">Зарегистрироваться</button>
                 <p class="auth-error" id="regError"></p>
             </form>
@@ -95,12 +95,13 @@
                     </div>
                     <div class="form-group">
                         <label for="negativePrompt">Негативный промпт</label>
-                        <textarea id="negativePrompt" rows="2" placeholder="Что исключить...">blurry, ugly, deformed</textarea>
+                        <textarea id="negativePrompt" rows="2" placeholder="Что исключить...">blurry, ugly, deformed, bad anatomy</textarea>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="width">Ширина</label>
                             <select id="width">
+                                <option value="512">512</option>
                                 <option value="768">768</option>
                                 <option value="1024" selected>1024</option>
                                 <option value="1536">1536</option>
@@ -109,6 +110,7 @@
                         <div class="form-group">
                             <label for="height">Высота</label>
                             <select id="height">
+                                <option value="512">512</option>
                                 <option value="768">768</option>
                                 <option value="1024" selected>1024</option>
                                 <option value="1536">1536</option>
@@ -139,7 +141,7 @@
                             <input type="number" id="guidance" value="7.5" min="1" max="20" step="0.5">
                         </div>
                         <div class="form-group">
-                            <label for="seed">Seed</label>
+                            <label for="seed">Seed (0 = random)</label>
                             <input type="number" id="seed" value="0" min="0" placeholder="0 = random">
                         </div>
                     </div>
@@ -198,20 +200,31 @@
             <div class="panel">
                 <div class="panel-header">
                     <h2><span class="panel-icon">▶</span> Генерация видео</h2>
-                    <span class="badge badge-beta">BETA</span>
+                    <span class="badge badge-free">AI VIDEO</span>
                 </div>
                 <div class="form-group">
                     <label for="videoPrompt">Промпт</label>
                     <textarea id="videoPrompt" rows="3" placeholder="Опишите сцену...">закат на пляже, волны</textarea>
                 </div>
+                <div class="form-group">
+                    <label for="videoModel">AI модель</label>
+                    <select id="videoModel">
+                        <option value="ltx-2" selected>LTX Video 2.3</option>
+                        <option value="nova-reel">Nova Reel</option>
+                        <option value="wan">Wan 2.1</option>
+                        <option value="wan-fast">Wan Fast</option>
+                        <option value="veo">Google Veo</option>
+                        <option value="seedance">Seedance 2.0</option>
+                    </select>
+                </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="videoDuration">Длительность (сек)</label>
-                        <input type="number" id="videoDuration" value="6" min="4" max="25">
+                        <input type="number" id="videoDuration" value="6" min="2" max="30">
                     </div>
                     <div class="form-group">
                         <label for="videoFps">FPS</label>
-                        <input type="number" id="videoFps" value="10" min="5" max="15">
+                        <input type="number" id="videoFps" value="10" min="8" max="15">
                     </div>
                     <div class="form-group">
                         <label for="videoSeed">Seed</label>
@@ -228,7 +241,7 @@
                 </div>
                 <div class="result-placeholder" id="videoPlaceholder">
                     <span class="placeholder-icon">🎬</span>
-                    <p>Нажми "Сгенерировать видео"</p>
+                    <p>Выбери модель и нажми "Сгенерировать видео"</p>
                 </div>
                 <div class="result-content hidden" id="videoResultContent">
                     <video id="generatedVideo" controls>
@@ -241,7 +254,7 @@
                 </div>
                 <div class="loader hidden" id="videoLoader">
                     <div class="spinner"></div>
-                    <p>Генерация видео...</p>
+                    <p>Генерация видео... (может занять до 3 минут)</p>
                 </div>
             </div>
         </section>
@@ -291,7 +304,7 @@
     </main>
 
     <footer>
-        <p>✦ VD AI — Нейросеть на Pollinations ✦</p>
+        <p>✦ VD AI ✦</p>
     </footer>
 
     <script src="app.js"></script>

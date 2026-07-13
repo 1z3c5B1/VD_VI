@@ -46,7 +46,7 @@ class ImageGenerator:
             "filename": filename,
             "path": str(output_path),
             "url": f"/outputs/{filename}",
-            "seed": seed,
+            "seed": actual_seed,
             "prompt": prompt,
         }
 

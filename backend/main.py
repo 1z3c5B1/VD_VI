@@ -1,5 +1,7 @@
 import requests
 import requests.utils
+import base64
+import uuid
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Header
 from fastapi.responses import FileResponse
@@ -54,8 +56,9 @@ class ImageEditRequest(BaseModel):
 class VideoRequest(BaseModel):
     prompt: str
     seed: Optional[int] = None
-    duration: int = Field(default=6, ge=4, le=25)
-    fps: int = Field(default=10, ge=5, le=30)
+    duration: int = Field(default=6, ge=2, le=120)
+    fps: int = Field(default=10, ge=8, le=15)
+    model: str = "ltx-2"
 
 
 class ChatRequest(BaseModel):
@@ -70,6 +73,16 @@ class AuthRequest(BaseModel):
     password: str
 
 
+def _require_auth(authorization: Optional[str]):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No token")
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user["valid"]:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    return user
+
+
 @app.get("/api/health")
 async def health():
     return {"status": "ok", "mode": "api"}
@@ -81,7 +94,9 @@ async def get_presets():
 
 
 @app.post("/api/generate/image")
-async def generate_image(req: ImageRequest):
+async def generate_image(req: ImageRequest, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    
     try:
         result = image_generator.generate(
             prompt=req.prompt,
@@ -98,58 +113,133 @@ async def generate_image(req: ImageRequest):
 
 
 @app.post("/api/generate/edit-image")
-async def edit_image(req: ImageEditRequest):
+async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    
     try:
-        import base64, uuid
-        # Decode base64 image
         image_bytes = base64.b64decode(req.image_data.split(",")[-1] if "," in req.image_data else req.image_data)
-        ext = "png"
-        if req.image_data.startswith("data:image/jpeg"):
-            ext = "jpg"
-        elif req.image_data.startswith("data:image/webp"):
-            ext = "webp"
-
-        temp_path = STATIC_DIR / f"edit_input_{uuid.uuid4().hex}.{ext}"
-        with open(temp_path, "wb") as f:
-            f.write(image_bytes)
-
-        poll_headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
-        with open(temp_path, "rb") as f:
-            resp = requests.post(
-                "https://gen.pollinations.ai/v1/images/edits",
-                headers=poll_headers,
-                files={"image": (f"input.{ext}", f, f"image/{ext}")},
-                data={"prompt": req.prompt, "n": 1, "size": f"{req.width}x{req.height}"},
-                timeout=120
-            )
-
-        temp_path.unlink(missing_ok=True)
-
-        if resp.status_code != 200:
-            raise HTTPException(status_code=502, detail=f"Edit API error: {resp.text[:200]}")
-
-        data = resp.json()
-        b64 = data["data"][0]["b64_json"]
-        filename = f"edit_{uuid.uuid4().hex}.png"
-        filepath = STATIC_DIR / filename
-        with open(filepath, "wb") as f:
-            f.write(base64.b64decode(b64))
-
-        return {"url": f"/static/generated/{filename}", "filename": filename}
+        
+        en_prompt = req.prompt
+        ru_map = {
+            "черн": "black", "чёрн": "black", "чорн": "black",
+            "бел": "white", "красн": "red", "син": "blue",
+            "зелен": "green", "зелён": "green", "желт": "yellow",
+            "сделай": "make", "добавь": "add", "убери": "remove",
+            "измени": "change", "замени": "replace", "увеличь": "increase",
+            "уменьши": "decrease", "ярк": "bright", "тёмн": "dark",
+            "тёмн": "dark", "свет": "light", "цвет": "color",
+            "фон": "background", "небо": "sky", "вод": "water",
+            "огон": "fire", "закат": "sunset", "рассвет": "sunrise",
+            "картинк": "image", "фото": "photo", "пейзаж": "landscape",
+        }
+        lower = req.prompt.lower()
+        for ru, en in ru_map.items():
+            if ru in lower:
+                en_prompt = f"edit the image: {req.prompt}. Apply the effect to the ENTIRE image."
+                break
+        
+        result = await _edit_with_pollinations(image_bytes, en_prompt, req.width, req.height)
+        if result:
+            return result
+        
+        return await _fallback_generate(en_prompt, req.width, req.height)
+        
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return await _fallback_generate(req.prompt, req.width, req.height)
+
+
+async def _edit_with_pollinations(image_bytes: bytes, prompt: str, width: int, height: int):
+    """Edit image: upload to media, then use models that support image editing"""
+    try:
+        print(f"[Edit] Uploading image to media storage...")
+        upload_resp = requests.post(
+            "https://media.pollinations.ai/upload",
+            headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+            files={"file": ("input.png", image_bytes, "image/png")},
+            timeout=60
+        )
+        
+        if upload_resp.status_code != 200:
+            print(f"[Edit] Upload failed: {upload_resp.status_code}")
+            return None
+        
+        media_url = upload_resp.json().get("url", "")
+        print(f"[Edit] Uploaded: {media_url}")
+        
+        if not media_url:
+            return None
+        
+        encoded_prompt = requests.utils.quote(prompt)
+        
+        for model in ["klein"]:
+            img_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?model={model}&width={width}&height={height}&image={requests.utils.quote(media_url)}"
+            
+            print(f"[Edit] Trying model={model}...")
+            img_resp = requests.get(
+                img_url,
+                headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+                timeout=120
+            )
+            
+            ct = img_resp.headers.get("content-type", "none")
+            print(f"[Edit] Status: {img_resp.status_code}, CT: {ct}, Size: {len(img_resp.content)}")
+            
+            if img_resp.status_code == 200 and "image" in ct and len(img_resp.content) > 5000:
+                filename = f"edit_{uuid.uuid4().hex}.png"
+                filepath = STATIC_DIR / filename
+                with open(filepath, "wb") as f:
+                    f.write(img_resp.content)
+                print(f"[Edit] Saved ({model}): {filename} ({len(img_resp.content)} bytes)")
+                return {"url": f"/static/generated/{filename}", "filename": filename}
+            else:
+                print(f"[Edit] Failed: {img_resp.text[:200]}")
+        
+        print("[Edit] All models failed")
+        return None
+        
+    except Exception as e:
+        print(f"[Edit] Exception: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+async def _fallback_generate(prompt: str, width: int, height: int):
+    try:
+        print(f"[Edit] Fallback: generating new image for '{prompt[:50]}'")
+        encoded = requests.utils.quote(prompt)
+        resp = requests.get(
+            f"https://gen.pollinations.ai/image/{encoded}",
+            params={"model": "flux", "width": width, "height": height, "seed": uuid.uuid4().int & 0x7fffffff},
+            headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+            timeout=60
+        )
+        if resp.status_code != 200:
+            raise Exception(f"Fallback failed: {resp.status_code}")
+        
+        filename = f"edit_{uuid.uuid4().hex}.png"
+        filepath = STATIC_DIR / filename
+        with open(filepath, "wb") as f:
+            f.write(resp.content)
+        
+        return {"url": f"/static/generated/{filename}", "filename": filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Edit failed: {str(e)}")
 
 
 @app.post("/api/generate/video")
-async def generate_video(req: VideoRequest):
+async def generate_video(req: VideoRequest, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    
     try:
         result = video_generator.generate_video(
             prompt=req.prompt,
             seed=req.seed,
             duration=req.duration,
             fps=req.fps,
+            model=req.model,
         )
         return result
     except Exception as e:
@@ -174,13 +264,8 @@ async def api_login(req: AuthRequest):
 
 @app.get("/api/me")
 async def api_me(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        raise HTTPException(status_code=401, detail="No token")
-    token = authorization.replace("Bearer ", "")
-    result = verify_token(token)
-    if not result["valid"]:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return result
+    user = _require_auth(authorization)
+    return user
 
 
 CHAT_MODELS = {
@@ -191,7 +276,8 @@ CHAT_MODELS = {
 }
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
+    _require_auth(authorization)
     try:
         api_model = CHAT_MODELS.get(req.model, "deepseek")
         full_prompt = f"{req.system_prompt}\n\n"
@@ -228,10 +314,43 @@ async def api_gallery():
                     "created": stat.st_ctime,
                     "type": "video" if ext == "mp4" else "image"
                 })
+            for f in OUTPUT_DIR.glob(f"*.{ext}"):
+                stat = f.stat()
+                files.append({
+                    "url": f"/outputs/{f.name}",
+                    "filename": f.name,
+                    "size": stat.st_size,
+                    "created": stat.st_ctime,
+                    "type": "video" if ext == "mp4" else "image"
+                })
         files.sort(key=lambda x: x["created"], reverse=True)
-        return {"files": files[:50]}
+        seen = set()
+        unique = []
+        for f in files:
+            if f["filename"] not in seen:
+                seen.add(f["filename"])
+                unique.append(f)
+        return {"files": unique[:50]}
     except Exception as e:
         return {"files": [], "error": str(e)}
+
+
+@app.delete("/api/gallery/{filename}")
+async def api_gallery_delete(filename: str, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    
+    import re
+    if not re.match(r'^[\w\-.]+$', filename):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    filepath = STATIC_DIR / filename
+    if filepath.exists():
+        filepath.unlink()
+        return {"success": True, "message": "Deleted"}
+    filepath = OUTPUT_DIR / filename
+    if filepath.exists():
+        filepath.unlink()
+        return {"success": True, "message": "Deleted"}
+    raise HTTPException(status_code=404, detail="File not found")
 
 
 @app.get("/")
