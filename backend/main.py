@@ -12,7 +12,7 @@ from typing import Optional
 
 from backend.models.image_generator import ImageGenerator
 from backend.models.video_generator import VideoGenerator
-from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_KEY
+from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK
 from backend.auth import register, login, verify_token
 
 image_generator = ImageGenerator()
@@ -156,7 +156,7 @@ async def _edit_with_pollinations(image_bytes: bytes, prompt: str, width: int, h
         print(f"[Edit] Uploading image to media storage...")
         upload_resp = requests.post(
             "https://media.pollinations.ai/upload",
-            headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+            headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
             files={"file": ("input.png", image_bytes, "image/png")},
             timeout=60
         )
@@ -179,7 +179,7 @@ async def _edit_with_pollinations(image_bytes: bytes, prompt: str, width: int, h
             print(f"[Edit] Trying model={model}...")
             img_resp = requests.get(
                 img_url,
-                headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+                headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
                 timeout=120
             )
             
@@ -213,7 +213,7 @@ async def _fallback_generate(prompt: str, width: int, height: int):
         resp = requests.get(
             f"https://gen.pollinations.ai/image/{encoded}",
             params={"model": "flux", "width": width, "height": height, "seed": uuid.uuid4().int & 0x7fffffff},
-            headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+            headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
             timeout=60
         )
         if resp.status_code != 200:
@@ -290,7 +290,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
         resp = requests.get(
             f"https://gen.pollinations.ai/text/{requests.utils.quote(full_prompt)}",
             params={"model": api_model, "max_tokens": 800},
-            headers={"Authorization": f"Bearer {POLLINATIONS_KEY}"},
+            headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
             timeout=60
         )
         if resp.status_code != 200:

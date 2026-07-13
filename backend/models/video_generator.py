@@ -2,7 +2,7 @@ import requests
 import uuid
 import io
 from pathlib import Path
-from backend.config import OUTPUT_DIR, POLLINATIONS_KEY, POLLINATIONS_PK
+from backend.config import OUTPUT_DIR, POLLINATIONS_PK
 
 
 VIDEO_MODELS = {
