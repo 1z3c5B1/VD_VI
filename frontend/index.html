@@ -59,10 +59,6 @@
                 <span class="tab-icon">✨</span>
                 <span>Изображение</span>
             </button>
-            <button class="tab-btn" data-tab="video">
-                <span class="tab-icon">▶</span>
-                <span>Видео</span>
-            </button>
             <button class="tab-btn" data-tab="chat">
                 <span class="tab-icon">💬</span>
                 <span>Чат</span>
@@ -191,70 +187,6 @@
                 <div class="loader hidden" id="imageLoader">
                     <div class="spinner"></div>
                     <p id="imageLoaderText">Генерация...</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- TAB: Video -->
-        <section id="tab-video" class="tab-content">
-            <div class="panel">
-                <div class="panel-header">
-                    <h2><span class="panel-icon">▶</span> Генерация видео</h2>
-                    <span class="badge badge-free">AI VIDEO</span>
-                </div>
-                <div class="form-group">
-                    <label for="videoPrompt">Промпт</label>
-                    <textarea id="videoPrompt" rows="3" placeholder="Опишите сцену...">закат на пляже, волны</textarea>
-                </div>
-                <div class="form-group">
-                    <label for="videoModel">AI модель</label>
-                    <select id="videoModel">
-                        <option value="ltx-2" selected>LTX Video 2.3</option>
-                        <option value="nova-reel">Nova Reel</option>
-                        <option value="wan">Wan 2.1</option>
-                        <option value="wan-fast">Wan Fast</option>
-                        <option value="veo">Google Veo</option>
-                        <option value="seedance">Seedance 2.0</option>
-                    </select>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="videoDuration">Длительность (сек)</label>
-                        <input type="number" id="videoDuration" value="6" min="2" max="30">
-                    </div>
-                    <div class="form-group">
-                        <label for="videoFps">FPS</label>
-                        <input type="number" id="videoFps" value="10" min="8" max="15">
-                    </div>
-                    <div class="form-group">
-                        <label for="videoSeed">Seed</label>
-                        <input type="number" id="videoSeed" value="0" min="0">
-                    </div>
-                </div>
-                <button class="btn btn-primary btn-full" onclick="generateVideo()">
-                    ▶ Сгенерировать видео
-                </button>
-            </div>
-            <div class="panel result-panel" id="videoResult">
-                <div class="panel-header">
-                    <h2>Результат</h2>
-                </div>
-                <div class="result-placeholder" id="videoPlaceholder">
-                    <span class="placeholder-icon">🎬</span>
-                    <p>Выбери модель и нажми "Сгенерировать видео"</p>
-                </div>
-                <div class="result-content hidden" id="videoResultContent">
-                    <video id="generatedVideo" controls>
-                        <source src="" type="video/mp4">
-                    </video>
-                    <div class="result-info" id="videoInfo"></div>
-                    <div class="result-actions">
-                        <button class="btn btn-small" onclick="downloadVideo()">⬇ Скачать</button>
-                    </div>
-                </div>
-                <div class="loader hidden" id="videoLoader">
-                    <div class="spinner"></div>
-                    <p>Генерация видео... (может занять до 3 минут)</p>
                 </div>
             </div>
         </section>

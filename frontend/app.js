@@ -2,7 +2,6 @@ const API_BASE = window.location.origin;
 let authToken = localStorage.getItem('vdai_token');
 let chatHistory = [];
 let lastImageResult = null;
-let lastVideoResult = null;
 
 // Debounce helper
 function debounce(fn, delay) {
@@ -339,74 +338,6 @@ async function editImage() {
         btn.textContent = '✎ Редактировать';
         loaderText.textContent = 'Генерация...';
     }
-}
-
-// ---- Video Generation ----
-async function generateVideo() {
-    const prompt = document.getElementById('videoPrompt').value.trim();
-    if (!prompt) return alert('Введите промпт');
-
-    const loader = document.getElementById('videoLoader');
-    const placeholder = document.getElementById('videoPlaceholder');
-    const result = document.getElementById('videoResultContent');
-    const btn = document.querySelector('#tab-video .btn-primary');
-
-    loader.classList.remove('hidden');
-    placeholder.classList.add('hidden');
-    result.classList.add('hidden');
-    btn.disabled = true;
-    const modelLabel = document.getElementById('videoModel').selectedOptions[0].text;
-    btn.textContent = `Генерация (${modelLabel})...`;
-    document.querySelector('#tab-video .loader p').textContent = `Генерация видео через ${modelLabel}... (может занять до 3 мин)`;
-
-    try {
-        const seed = parseInt(document.getElementById('videoSeed').value) || null;
-        const duration = parseInt(document.getElementById('videoDuration').value) || 6;
-        const fps = parseInt(document.getElementById('videoFps').value) || 10;
-        const model = document.getElementById('videoModel').value;
-
-        const res = await fetch(`${API_BASE}/api/generate/video`, {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json', 
-                'Authorization': `Bearer ${authToken}` 
-            },
-            body: JSON.stringify({ prompt, seed: seed || null, duration, fps, model }),
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error(err.detail || 'Ошибка генерации видео');
-        }
-
-        const data = await res.json();
-        lastVideoResult = data;
-
-        const video = document.getElementById('generatedVideo');
-        video.querySelector('source').src = `${API_BASE}${data.url}?t=${Date.now()}`;
-        video.load();
-
-        document.getElementById('videoInfo').textContent =
-            `${data.model || 'unknown'} | ${data.duration} сек | Seed: ${data.seed}`;
-
-        loader.classList.add('hidden');
-        result.classList.remove('hidden');
-    } catch (err) {
-        loader.classList.add('hidden');
-        placeholder.classList.remove('hidden');
-        alert('Ошибка: ' + err.message);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '▶ Сгенерировать видео';
-    }
-}
-
-function downloadVideo() {
-    if (!lastVideoResult) return;
-    const a = document.createElement('a');
-    a.href = `${API_BASE}${lastVideoResult.url}`;
-    a.download = lastVideoResult.filename;
-    a.click();
 }
 
 // ---- Chat ----
