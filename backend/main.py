@@ -44,6 +44,13 @@ class ImageRequest(BaseModel):
     seed: Optional[int] = None
 
 
+class ImageEditRequest(BaseModel):
+    image_data: str
+    prompt: str
+    width: int = 1024
+    height: int = 1024
+
+
 class VideoRequest(BaseModel):
     prompt: str
     seed: Optional[int] = None
@@ -86,6 +93,51 @@ async def generate_image(req: ImageRequest):
             seed=req.seed,
         )
         return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/generate/edit-image")
+async def edit_image(req: ImageEditRequest):
+    try:
+        import base64, uuid
+        # Decode base64 image
+        image_bytes = base64.b64decode(req.image_data.split(",")[-1] if "," in req.image_data else req.image_data)
+        ext = "png"
+        if req.image_data.startswith("data:image/jpeg"):
+            ext = "jpg"
+        elif req.image_data.startswith("data:image/webp"):
+            ext = "webp"
+
+        temp_path = STATIC_DIR / f"edit_input_{uuid.uuid4().hex}.{ext}"
+        with open(temp_path, "wb") as f:
+            f.write(image_bytes)
+
+        poll_headers = {"Authorization": f"Bearer {POLLINATIONS_KEY}"}
+        with open(temp_path, "rb") as f:
+            resp = requests.post(
+                "https://gen.pollinations.ai/v1/images/edits",
+                headers=poll_headers,
+                files={"image": (f"input.{ext}", f, f"image/{ext}")},
+                data={"prompt": req.prompt, "n": 1, "size": f"{req.width}x{req.height}"},
+                timeout=120
+            )
+
+        temp_path.unlink(missing_ok=True)
+
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"Edit API error: {resp.text[:200]}")
+
+        data = resp.json()
+        b64 = data["data"][0]["b64_json"]
+        filename = f"edit_{uuid.uuid4().hex}.png"
+        filepath = STATIC_DIR / filename
+        with open(filepath, "wb") as f:
+            f.write(base64.b64decode(b64))
+
+        return {"url": f"/static/generated/{filename}", "filename": filename}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -160,6 +212,26 @@ async def chat(req: ChatRequest):
         return {"reply": resp.text.strip()}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/gallery")
+async def api_gallery():
+    try:
+        files = []
+        for ext in ["png", "jpg", "jpeg", "gif", "webp", "mp4"]:
+            for f in STATIC_DIR.glob(f"*.{ext}"):
+                stat = f.stat()
+                files.append({
+                    "url": f"/static/generated/{f.name}",
+                    "filename": f.name,
+                    "size": stat.st_size,
+                    "created": stat.st_ctime,
+                    "type": "video" if ext == "mp4" else "image"
+                })
+        files.sort(key=lambda x: x["created"], reverse=True)
+        return {"files": files[:50]}
+    except Exception as e:
+        return {"files": [], "error": str(e)}
 
 
 @app.get("/")

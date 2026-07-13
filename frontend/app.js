@@ -1,5 +1,8 @@
 const API_BASE = window.location.origin;
 let authToken = localStorage.getItem('vdai_token');
+let chatHistory = [];
+let lastImageResult = null;
+let lastVideoResult = null;
 
 // ---- Auth ----
 function switchAuthTab(tab) {
@@ -27,6 +30,7 @@ async function authLogin() {
         localStorage.setItem('vdai_token', authToken);
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('userName').textContent = data.username;
+        document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
     } catch (err) {
         document.getElementById('authError').textContent = err.message;
@@ -51,6 +55,7 @@ async function authRegister() {
         localStorage.setItem('vdai_token', authToken);
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('userName').textContent = data.username;
+        document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
     } catch (err) {
         document.getElementById('regError').textContent = err.message;
@@ -78,6 +83,7 @@ async function checkAuth() {
         const data = await res.json();
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('userName').textContent = data.username;
+        document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
     } catch {
         localStorage.removeItem('vdai_token');
@@ -91,20 +97,50 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         btn.classList.add('active');
-        const tab = btn.dataset.tab;
-        document.getElementById(`tab-${tab}`).classList.add('active');
-        if (tab === 'gallery') loadGallery();
+        document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
+        if (btn.dataset.tab === 'gallery') loadGallery();
     });
 });
+
+// ---- Image mode switch ----
+function switchImageMode(mode) {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`.mode-tab[data-mode="${mode}"]`).classList.add('active');
+    document.getElementById('imageGenerateMode').classList.toggle('hidden', mode !== 'generate');
+    document.getElementById('imageEditMode').classList.toggle('hidden', mode !== 'edit');
+    document.getElementById('imagePlaceholder').classList.remove('hidden');
+    document.getElementById('imageResultContent').classList.add('hidden');
+}
 
 // ---- Style tags ----
 document.querySelectorAll('.style-tag').forEach(tag => {
     tag.addEventListener('click', () => {
-        const isActive = tag.classList.contains('active');
+        if (tag.classList.contains('active')) return;
         document.querySelectorAll('.style-tag').forEach(t => t.classList.remove('active'));
-        if (!isActive) tag.classList.add('active');
+        tag.classList.add('active');
     });
 });
+
+// ---- Image Upload ----
+function onEditFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) { alert('Файл слишком большой (макс 10MB)'); return; }
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('uploadArea').classList.add('hidden');
+        const preview = document.getElementById('editPreview');
+        preview.classList.remove('hidden');
+        document.getElementById('editPreviewImg').src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearEditFile() {
+    document.getElementById('editFileInput').value = '';
+    document.getElementById('editPreview').classList.add('hidden');
+    document.getElementById('uploadArea').classList.remove('hidden');
+}
 
 // ---- Health check ----
 async function checkHealth() {
@@ -113,24 +149,15 @@ async function checkHealth() {
         const data = await res.json();
         const dot = document.getElementById('statusDot');
         const text = document.getElementById('statusText');
-        if (data.status === 'ok') {
-            dot.className = 'status-dot online';
-            text.textContent = 'Сервер работает';
-        } else {
-            dot.className = 'status-dot offline';
-            text.textContent = 'Ошибка сервера';
-        }
+        dot.className = `status-dot ${data.status === 'ok' ? 'online' : 'offline'}`;
+        text.textContent = data.status === 'ok' ? 'Сервер работает' : 'Ошибка сервера';
     } catch {
-        const dot = document.getElementById('statusDot');
-        const text = document.getElementById('statusText');
-        dot.className = 'status-dot offline';
-        text.textContent = 'Сервер недоступен';
+        document.getElementById('statusDot').className = 'status-dot offline';
+        document.getElementById('statusText').textContent = 'Сервер недоступен';
     }
 }
 
 // ---- Image Generation ----
-let lastImageResult = null;
-
 function getActiveStyle() {
     const active = document.querySelector('.style-tag.active');
     return active ? active.dataset.style || '' : '';
@@ -140,37 +167,34 @@ async function generateImage() {
     const prompt = document.getElementById('prompt').value.trim();
     if (!prompt) return alert('Введите промпт');
 
-    const uiLoader = document.getElementById('imageLoader');
-    const uiPlaceholder = document.getElementById('imagePlaceholder');
-    const uiResult = document.getElementById('imageResultContent');
+    const loader = document.getElementById('imageLoader');
+    const placeholder = document.getElementById('imagePlaceholder');
+    const result = document.getElementById('imageResultContent');
     const btn = document.getElementById('generateImageBtn');
 
-    uiLoader.classList.remove('hidden');
-    uiPlaceholder.classList.add('hidden');
-    uiResult.classList.add('hidden');
+    loader.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    result.classList.add('hidden');
     btn.disabled = true;
     btn.textContent = 'Генерация...';
 
     try {
         const style = getActiveStyle();
         const fullPrompt = style ? `${prompt}, ${style}` : prompt;
-
         const seed = parseInt(document.getElementById('seed').value) || null;
-
-        const body = {
-            prompt: fullPrompt,
-            negative_prompt: document.getElementById('negativePrompt').value || null,
-            width: parseInt(document.getElementById('width').value),
-            height: parseInt(document.getElementById('height').value),
-            guidance_scale: parseFloat(document.getElementById('guidance').value) || 7.5,
-            num_inference_steps: parseInt(document.getElementById('steps').value) || 30,
-            seed: seed || null,
-        };
 
         const res = await fetch(`${API_BASE}/api/generate/image`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({
+                prompt: fullPrompt,
+                negative_prompt: document.getElementById('negativePrompt').value || null,
+                width: parseInt(document.getElementById('width').value),
+                height: parseInt(document.getElementById('height').value),
+                guidance_scale: parseFloat(document.getElementById('guidance').value) || 7.5,
+                num_inference_steps: parseInt(document.getElementById('steps').value) || 30,
+                seed: seed || null,
+            }),
         });
 
         if (!res.ok) {
@@ -183,22 +207,19 @@ async function generateImage() {
 
         const img = document.getElementById('generatedImage');
         img.src = `${API_BASE}${data.url}?t=${Date.now()}`;
-        img.onload = () => {
-            img.style.display = 'block';
-        };
 
         document.getElementById('imageInfo').textContent =
-            `Seed: ${data.seed} | Размер: ${body.width}x${body.height} | Шаги: ${body.num_inference_steps}`;
+            `Seed: ${data.seed} | ${document.getElementById('width').value}x${document.getElementById('height').value} | ${document.getElementById('steps').value} шагов`;
 
-        uiLoader.classList.add('hidden');
-        uiResult.classList.remove('hidden');
+        loader.classList.add('hidden');
+        result.classList.remove('hidden');
     } catch (err) {
-        uiLoader.classList.add('hidden');
-        uiPlaceholder.classList.remove('hidden');
+        loader.classList.add('hidden');
+        placeholder.classList.remove('hidden');
         alert('Ошибка: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span class="btn-icon">✦</span> Сгенерировать';
+        btn.textContent = '✦ Сгенерировать';
     }
 }
 
@@ -217,21 +238,80 @@ function regenerateImage() {
     generateImage();
 }
 
-// ---- Video Generation ----
-let lastVideoResult = null;
+// ---- Image Edit ----
+async function editImage() {
+    const fileInput = document.getElementById('editFileInput');
+    const previewImg = document.getElementById('editPreviewImg');
+    const editPrompt = document.getElementById('editPrompt').value.trim();
 
+    if (!fileInput.files.length) return alert('Загрузи фото сначала');
+    if (!editPrompt) return alert('Напиши, что изменить');
+
+    const loader = document.getElementById('imageLoader');
+    const placeholder = document.getElementById('imagePlaceholder');
+    const result = document.getElementById('imageResultContent');
+    const btn = document.getElementById('editImageBtn');
+    const loaderText = document.getElementById('imageLoaderText');
+
+    loader.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    result.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Редактирую...';
+    loaderText.textContent = 'Редактирование изображения...';
+
+    try {
+        const res = await fetch(`${API_BASE}/api/generate/edit-image`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                image_data: previewImg.src,
+                prompt: editPrompt,
+                width: parseInt(document.getElementById('width').value) || 1024,
+                height: parseInt(document.getElementById('height').value) || 1024,
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Ошибка редактирования');
+        }
+
+        const data = await res.json();
+        lastImageResult = data;
+
+        const img = document.getElementById('generatedImage');
+        img.src = `${API_BASE}${data.url}?t=${Date.now()}`;
+
+        document.getElementById('imageInfo').textContent =
+            `Редактирование: "${editPrompt}"`;
+
+        loader.classList.add('hidden');
+        result.classList.remove('hidden');
+    } catch (err) {
+        loader.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        alert('Ошибка: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✎ Редактировать';
+        loaderText.textContent = 'Генерация...';
+    }
+}
+
+// ---- Video Generation ----
 async function generateVideo() {
     const prompt = document.getElementById('videoPrompt').value.trim();
     if (!prompt) return alert('Введите промпт');
 
-    const uiLoader = document.getElementById('videoLoader');
-    const uiPlaceholder = document.getElementById('videoPlaceholder');
-    const uiResult = document.getElementById('videoResultContent');
+    const loader = document.getElementById('videoLoader');
+    const placeholder = document.getElementById('videoPlaceholder');
+    const result = document.getElementById('videoResultContent');
     const btn = document.querySelector('#tab-video .btn-primary');
 
-    uiLoader.classList.remove('hidden');
-    uiPlaceholder.classList.add('hidden');
-    uiResult.classList.add('hidden');
+    loader.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    result.classList.add('hidden');
     btn.disabled = true;
     btn.textContent = 'Генерация видео...';
 
@@ -240,17 +320,10 @@ async function generateVideo() {
         const duration = parseInt(document.getElementById('videoDuration').value) || 6;
         const fps = parseInt(document.getElementById('videoFps').value) || 10;
 
-        const body = {
-            prompt: prompt,
-            seed: seed || null,
-            duration: duration,
-            fps: fps,
-        };
-
         const res = await fetch(`${API_BASE}/api/generate/video`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify({ prompt, seed: seed || null, duration, fps }),
         });
 
         if (!res.ok) {
@@ -268,15 +341,15 @@ async function generateVideo() {
         document.getElementById('videoInfo').textContent =
             `${data.duration} сек | ${data.frames} кадров | ${data.fps} FPS | Seed: ${data.seed}`;
 
-        uiLoader.classList.add('hidden');
-        uiResult.classList.remove('hidden');
+        loader.classList.add('hidden');
+        result.classList.remove('hidden');
     } catch (err) {
-        uiLoader.classList.add('hidden');
-        uiPlaceholder.classList.remove('hidden');
+        loader.classList.add('hidden');
+        placeholder.classList.remove('hidden');
         alert('Ошибка: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<span class="btn-icon">▶</span> Сгенерировать видео';
+        btn.textContent = '▶ Сгенерировать видео';
     }
 }
 
@@ -289,15 +362,13 @@ function downloadVideo() {
 }
 
 // ---- Chat ----
-let chatHistory = [];
-
 async function sendChat() {
     const input = document.getElementById('chatInput');
     const msg = input.value.trim();
     if (!msg) return;
 
     input.value = '';
-    addChatMsg('user', msg);
+    addChatMsg('user', msg, 'Вы');
     chatHistory.push({ role: 'user', content: msg });
 
     const loader = document.getElementById('chatLoader');
@@ -307,37 +378,44 @@ async function sendChat() {
         const model = document.getElementById('chatModel').value;
         const headers = { 'Content-Type': 'application/json' };
         if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
         const res = await fetch(`${API_BASE}/api/chat`, {
-            method: 'POST', headers: headers,
+            method: 'POST', headers,
             body: JSON.stringify({
                 message: msg,
                 history: chatHistory.slice(0, -1),
-                model: model,
+                model,
                 system_prompt: "Ты VD AI — умный и дружелюбный ИИ-ассистент. Отвечай кратко и полезно. Твоё имя VD AI."
             }),
         });
+
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || 'Ошибка');
-        addChatMsg('assistant', data.reply);
+
+        const modelLabel = document.getElementById('chatModel').selectedOptions[0].text;
+        addChatMsg('assistant', data.reply, modelLabel);
         chatHistory.push({ role: 'assistant', content: data.reply });
     } catch (err) {
-        addChatMsg('assistant', 'Ошибка: ' + err.message);
+        addChatMsg('assistant', 'Ошибка: ' + err.message, 'Система');
     } finally {
         loader.classList.add('hidden');
     }
 }
 
-function addChatMsg(role, text) {
+function addChatMsg(role, text, label) {
     const container = document.getElementById('chatMessages');
     const div = document.createElement('div');
     div.className = `chat-msg ${role}`;
-    div.innerHTML = `<div class="msg-content">${escapeHtml(text)}</div>`;
+    const labelHtml = label ? `<div class="msg-label">${escapeHtml(label)}</div>` : '';
+    div.innerHTML = `${labelHtml}<div class="msg-content">${escapeHtml(text)}</div>`;
     container.appendChild(div);
     container.scrollTop = container.scrollHeight;
 }
 
 function escapeHtml(text) {
-    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 
 // ---- Gallery ----
@@ -346,21 +424,41 @@ async function loadGallery() {
     grid.innerHTML = '<p class="gallery-empty">Загрузка...</p>';
 
     try {
-        const res = await fetch(`${API_BASE}/api/generate/image`, { method: 'OPTIONS' });
-    } catch {
-        // pass
-    }
+        const res = await fetch(`${API_BASE}/api/gallery`);
+        const data = await res.json();
 
-    try {
-        const res = await fetch(`${API_BASE}/api/health`);
-        if (!res.ok) throw new Error('Server error');
+        if (!data.files || data.files.length === 0) {
+            grid.innerHTML = '<p class="gallery-empty">Пока нет сгенерированных файлов</p>';
+            return;
+        }
 
-        const imgRes = await fetch(`${API_BASE}/api/generate/image`, { method: 'OPTIONS' });
+        grid.innerHTML = '';
+        data.files.forEach(file => {
+            const item = document.createElement('div');
+            item.className = 'gallery-item';
 
-        grid.innerHTML = `
-            <p class="gallery-empty">Галерея просматривает папку outputs/ на сервере.<br>
-            Откройте папку проекта и проверьте сгенерированные файлы вручную.</p>
-        `;
+            if (file.type === 'video') {
+                item.innerHTML = `
+                    <video src="${API_BASE}${file.url}" muted loop></video>
+                    <div class="gallery-item-overlay">▶ Видео</div>
+                `;
+                item.addEventListener('click', () => {
+                    const vid = item.querySelector('video');
+                    vid.paused ? vid.play() : vid.pause();
+                });
+            } else {
+                const img = document.createElement('img');
+                img.src = `${API_BASE}${file.url}`;
+                img.loading = 'lazy';
+                item.appendChild(img);
+                const overlay = document.createElement('div');
+                overlay.className = 'gallery-item-overlay';
+                overlay.textContent = file.filename;
+                item.appendChild(overlay);
+                item.addEventListener('click', () => window.open(`${API_BASE}${file.url}`, '_blank'));
+            }
+            grid.appendChild(item);
+        });
     } catch {
         grid.innerHTML = '<p class="gallery-empty">Сервер недоступен</p>';
     }
