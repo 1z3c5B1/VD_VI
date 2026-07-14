@@ -209,45 +209,49 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
         img = img.convert("RGB")
         img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
 
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=90)
-        img_b64 = __import__("base64").b64encode(buf.getvalue()).decode()
-
         HF_TOKEN = os.environ.get("HF_TOKEN", "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")
-        MODEL_URL = "https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix"
 
-        print(f"[Edit/HF] InstructPix2Pix: '{prompt[:50]}...'")
+        for model in [
+            "timbrooks/instruct-pix2pix",
+            "runwayml/stable-diffusion-img2img",
+        ]:
+            MODEL_URL = f"https://api-inference.huggingface.co/models/{model}"
+            print(f"[Edit/HF] Trying {model}: '{prompt[:50]}...'")
 
-        payload = {
-            "inputs": img_b64,
-            "parameters": {"prompt": prompt},
-        }
+            buf = io.BytesIO()
+            img.save(buf, format="JPEG", quality=90)
+            clean_bytes = buf.getvalue()
 
-        resp = await asyncio.to_thread(
-            requests.post,
-            MODEL_URL,
-            json=payload,
-            headers={"Authorization": f"Bearer {HF_TOKEN}"},
-            timeout=60,
-        )
+            resp = await asyncio.to_thread(
+                requests.post,
+                MODEL_URL,
+                data=clean_bytes,
+                headers={
+                    "Authorization": f"Bearer {HF_TOKEN}",
+                    "Content-Type": "image/jpeg",
+                    "X-Prompt": prompt,
+                },
+                timeout=60,
+            )
 
-        print(f"[Edit/HF] Status: {resp.status_code}, CT: {resp.headers.get('content-type', '?')}")
+            print(f"[Edit/HF] {model}: Status={resp.status_code}, CT={resp.headers.get('content-type', '?')}, Size={len(resp.content)}")
 
-        if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
-            result_img = Image.open(io.BytesIO(resp.content))
-            out_buf = io.BytesIO()
-            result_img.save(out_buf, format="PNG")
-            img_bytes = out_buf.getvalue()
+            if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
+                result_img = Image.open(io.BytesIO(resp.content))
+                out_buf = io.BytesIO()
+                result_img.save(out_buf, format="PNG")
+                img_bytes = out_buf.getvalue()
 
-            if len(img_bytes) > 5000:
-                filename = f"edit_{uuid.uuid4().hex}.png"
-                filepath = STATIC_DIR / filename
-                with open(filepath, "wb") as f:
-                    f.write(img_bytes)
-                print(f"[Edit/HF] Saved: {filename} ({len(img_bytes)} bytes)")
-                return {"url": f"/static/generated/{filename}", "filename": filename}
+                if len(img_bytes) > 5000:
+                    filename = f"edit_{uuid.uuid4().hex}.png"
+                    filepath = STATIC_DIR / filename
+                    with open(filepath, "wb") as f:
+                        f.write(img_bytes)
+                    print(f"[Edit/HF] Saved: {filename} ({len(img_bytes)} bytes)")
+                    return {"url": f"/static/generated/{filename}", "filename": filename}
 
-        print(f"[Edit/HF] Failed: {resp.status_code} {resp.text[:200]}")
+            print(f"[Edit/HF] {model} failed: {resp.status_code}")
+
         return None
 
     except Exception as e:
