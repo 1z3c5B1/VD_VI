@@ -370,9 +370,22 @@ CHAT_PERSONAS = {
 }
 
 
+FREE_CHAT_MODELS = {"vdai"}
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
-    _require_auth(authorization)
+    user = _require_auth(authorization)
+    user_id = user["user_id"]
+    is_pro = user.get("pro", 0)
+
+    if req.model not in FREE_CHAT_MODELS and not is_pro:
+        raise HTTPException(status_code=403, detail="Эта модель доступна только для PRO. Купи PRO или используй VDAI.")
+
+    result = deduct_coins(user_id, 1)
+    if not result["success"]:
+        raise HTTPException(status_code=402, detail=result["error"])
+
     try:
         api_model = CHAT_MODELS.get(req.model, "openai")
         system_prompt = CHAT_PERSONAS.get(req.model, req.system_prompt)
@@ -417,7 +430,7 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
         if not reply:
             raise HTTPException(status_code=502, detail="Пустой ответ от модели")
 
-        return {"reply": reply}
+        return {"reply": reply, "coins": result.get("coins", 0)}
     except HTTPException:
         raise
     except Exception as e:

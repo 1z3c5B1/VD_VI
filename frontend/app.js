@@ -441,6 +441,11 @@ async function sendChat() {
         const modelLabel = document.getElementById('chatModel').selectedOptions[0].text;
         addChatMsg('assistant', data.reply, modelLabel);
         chatHistory.push({ role: 'assistant', content: data.reply });
+
+        if (data.coins !== undefined) {
+            userCoins = data.coins;
+            document.getElementById('userCoins').textContent = userCoins;
+        }
     } catch (err) {
         addChatMsg('assistant', 'Ошибка: ' + err.message, 'Система');
     } finally {
