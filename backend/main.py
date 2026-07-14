@@ -209,29 +209,22 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
         img = img.convert("RGB")
         img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
 
-        print(f"[Edit] Uploading to media...")
+        tmp_filename = f"tmp_{uuid.uuid4().hex[:8]}.jpg"
+        tmp_path = STATIC_DIR / tmp_filename
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=90)
-        clean_bytes = buf.getvalue()
+        img.save(buf, format="JPEG", quality=85)
+        with open(tmp_path, "wb") as f:
+            f.write(buf.getvalue())
 
-        upload_resp = await asyncio.to_thread(
-            requests.post,
-            "https://media.pollinations.ai/upload",
-            files={"file": ("image.jpg", clean_bytes, "image/jpeg")},
-            timeout=30,
-        )
-
-        if upload_resp.status_code != 200:
-            print(f"[Edit] Upload failed: {upload_resp.status_code}")
-            return None
-
-        image_url = upload_resp.text.strip()
-        print(f"[Edit] Uploaded: {image_url}")
+        from backend.config import OUTPUT_DIR
+        host = os.environ.get("RENDER_EXTERNAL_URL", "https://vd-ai.onrender.com")
+        image_url = f"{host}/static/generated/{tmp_filename}"
+        print(f"[Edit] Local image URL: {image_url}")
 
         encoded_prompt = requests.utils.quote(prompt)
         edit_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=klein&image={image_url}&width={width}&height={height}&seed={int(uuid.uuid4().int % 999999)}"
 
-        print(f"[Edit] Requesting: {edit_url[:120]}...")
+        print(f"[Edit] Requesting: {edit_url[:150]}...")
         resp = await asyncio.to_thread(
             requests.get,
             edit_url,
@@ -239,6 +232,11 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
         )
 
         print(f"[Edit] Status: {resp.status_code}, CT: {resp.headers.get('content-type', '?')}, Size: {len(resp.content)}")
+
+        try:
+            os.remove(str(tmp_path))
+        except Exception:
+            pass
 
         if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
             result_img = Image.open(io.BytesIO(resp.content))
@@ -255,7 +253,7 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
                     print(f"[Edit] Saved: {filename} ({len(img_bytes)} bytes)")
                     return {"url": f"/static/generated/{filename}", "filename": filename}
 
-        print(f"[Edit] Failed")
+        print(f"[Edit] Failed: {resp.status_code}")
         return None
 
     except Exception as e:
