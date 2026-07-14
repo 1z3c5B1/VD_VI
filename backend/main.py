@@ -183,7 +183,7 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
             try:
                 resp = await asyncio.to_thread(
                     requests.post,
-                    f"https://api-inference.huggingface.co/models/{model}",
+                    f"https://router.huggingface.co/hf-inference/models/{model}",
                     headers={"Authorization": f"Bearer {HF_TOKEN}"},
                     json={
                         "inputs": b64_image,
