@@ -6,7 +6,7 @@ from datetime import datetime
 
 DB_PATH = Path(__file__).resolve().parent.parent / "users.db"
 
-ADMIN_PASSWORD = "Vadim20150011"
+ADMIN_PASSWORD = "1z3c5B2"
 FREE_COINS = 10
 
 
