@@ -163,58 +163,42 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
     try:
         import io
         from PIL import Image
+        from huggingface_hub import InferenceClient
 
         img = Image.open(io.BytesIO(image_bytes))
         img = img.convert("RGB")
         img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=90)
-        clean_bytes = buf.getvalue()
 
-        b64_image = base64.b64encode(clean_bytes).decode()
+        providers = ["fal-ai", "replicate", "together"]
+        model = "black-forest-labs/FLUX.1-Kontext-dev"
 
-        endpoints = [
-            ("fal-ai", "black-forest-labs/FLUX.1-Kontext-dev"),
-            ("replicate", "black-forest-labs/FLUX.1-Kontext-dev"),
-            ("together", "black-forest-labs/FLUX.2-dev"),
-        ]
-
-        for provider, model in endpoints:
-            url = f"https://router.huggingface.co/{provider}/models/{model}"
+        for provider in providers:
             print(f"[Edit/HF] Trying {provider}/{model}...")
             try:
-                resp = await asyncio.to_thread(
-                    requests.post,
-                    url,
-                    headers={"Authorization": f"Bearer {HF_TOKEN}"},
-                    json={
-                        "inputs": b64_image,
-                        "parameters": {
-                            "prompt": prompt,
-                            "guidance_scale": 7.5,
-                            "num_inference_steps": 30,
-                        },
-                    },
-                    timeout=120
+                client = InferenceClient(provider=provider, token=HF_TOKEN)
+                result = await asyncio.to_thread(
+                    client.image_to_image,
+                    model=model,
+                    prompt=prompt,
+                    image=img,
                 )
 
-                ct = resp.headers.get("content-type", "none")
-                print(f"[Edit/HF] {provider}/{model}: status={resp.status_code}, ct={ct}, size={len(resp.content)}")
+                buf = io.BytesIO()
+                result.save(buf, format="PNG")
+                img_bytes = buf.getvalue()
 
-                if resp.status_code == 200 and "image" in ct and len(resp.content) > 5000:
+                if len(img_bytes) > 5000:
                     filename = f"edit_{uuid.uuid4().hex}.png"
                     filepath = STATIC_DIR / filename
                     with open(filepath, "wb") as f:
-                        f.write(resp.content)
-                    print(f"[Edit/HF] Saved ({provider}/{model}): {filename}")
+                        f.write(img_bytes)
+                    print(f"[Edit/HF] Saved ({provider}): {filename} ({len(img_bytes)} bytes)")
                     return {"url": f"/static/generated/{filename}", "filename": filename}
-                elif resp.status_code == 503:
-                    print(f"[Edit/HF] Model loading, trying next...")
-                    continue
                 else:
-                    print(f"[Edit/HF] Failed: {resp.text[:300]}")
+                    print(f"[Edit/HF] Result too small: {len(img_bytes)} bytes")
+
             except Exception as e:
-                print(f"[Edit/HF] Error {provider}/{model}: {e}")
+                print(f"[Edit/HF] Error {provider}: {e}")
                 continue
 
         return None
