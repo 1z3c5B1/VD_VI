@@ -291,12 +291,20 @@
                 <h3 style="margin:20px 0 12px">Промокоды</h3>
                 <div class="form-row" style="margin-bottom:12px">
                     <input type="text" id="adminPromoCode" placeholder="Код" style="flex:1">
-                    <select id="adminPromoType">
+                    <select id="adminPromoType" onchange="togglePromoDuration()">
                         <option value="coins">Coins</option>
                         <option value="pro">PRO</option>
                         <option value="ban">Ban</option>
                     </select>
                     <input type="number" id="adminPromoValue" placeholder="Значение" value="10" style="width:80px">
+                    <select id="adminPromoDuration" style="display:none">
+                        <option value="">Навсегда</option>
+                        <option value="30min">30 минут</option>
+                        <option value="1hr">1 час</option>
+                        <option value="1day">1 день</option>
+                        <option value="7day">7 дней</option>
+                        <option value="30day">30 дней</option>
+                    </select>
                     <button class="btn btn-primary" onclick="adminCreatePromo()">Создать</button>
                 </div>
                 <div id="adminPromosList" class="admin-list"></div>

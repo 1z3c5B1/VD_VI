@@ -1,7 +1,7 @@
 import os
 import hashlib
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import psycopg2
 import psycopg2.extras
@@ -13,6 +13,15 @@ DATABASE_URL = os.environ.get(
 
 ADMIN_PASSWORD = "1z3c5B2"
 FREE_COINS = 10
+
+PRO_DURATIONS = {
+    "30min": 30,
+    "1hr": 60,
+    "1day": 1440,
+    "7day": 10080,
+    "30day": 43200,
+    "forever": None,
+}
 
 
 def _get_db():
@@ -31,6 +40,7 @@ def _init_db():
             pass_hash TEXT,
             coins INTEGER DEFAULT 10,
             pro INTEGER DEFAULT 0,
+            pro_expires TEXT DEFAULT '',
             banned INTEGER DEFAULT 0,
             ban_reason TEXT DEFAULT ''
         )
@@ -47,15 +57,46 @@ def _init_db():
             code TEXT UNIQUE,
             type TEXT,
             value INTEGER DEFAULT 0,
+            duration TEXT DEFAULT '',
             used_by INTEGER DEFAULT 0,
             created_at TEXT
         )
     """)
+    for col in ["pro_expires"]:
+        try:
+            cur.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT ''")
+        except Exception:
+            pass
+    for col in ["duration"]:
+        try:
+            cur.execute(f"ALTER TABLE promo_codes ADD COLUMN {col} TEXT DEFAULT ''")
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
 
 _init_db()
+
+
+def _check_pro_expiry(user_id: int, conn) -> bool:
+    cur = conn.cursor()
+    cur.execute("SELECT pro, pro_expires FROM users WHERE id = %s", (user_id,))
+    user = cur.fetchone()
+    if not user:
+        return False
+    if not user["pro"]:
+        return False
+    if user["pro_expires"]:
+        try:
+            expires = datetime.fromisoformat(user["pro_expires"])
+            if datetime.now() > expires:
+                cur.execute("UPDATE users SET pro = 0, pro_expires = '' WHERE id = %s", (user_id,))
+                conn.commit()
+                return False
+        except Exception:
+            pass
+    return True
 
 
 def register(username: str, password: str) -> dict:
@@ -87,7 +128,7 @@ def login(username: str, password: str) -> dict:
     try:
         pass_hash = hashlib.sha256(password.encode()).hexdigest()
         cur.execute(
-            "SELECT id, banned, ban_reason, coins, pro FROM users WHERE username = %s AND pass_hash = %s",
+            "SELECT id, banned, ban_reason, coins, pro, pro_expires FROM users WHERE username = %s AND pass_hash = %s",
             (username, pass_hash),
         )
         user = cur.fetchone()
@@ -99,12 +140,13 @@ def login(username: str, password: str) -> dict:
         token = secrets.token_hex(16)
         cur.execute("INSERT INTO sessions (token, user_id) VALUES (%s, %s)", (token, user["id"]))
         conn.commit()
+        pro = _check_pro_expiry(user["id"], conn)
         return {
             "success": True,
             "token": token,
             "username": username,
             "coins": user["coins"],
-            "pro": user["pro"],
+            "pro": 1 if pro else 0,
         }
     finally:
         conn.close()
@@ -124,12 +166,13 @@ def verify_token(token: str) -> dict:
             if row["banned"]:
                 reason = row["ban_reason"] or "Без причины"
                 return {"valid": False, "error": f"Аккаунт заблокирован. Причина: {reason}"}
+            pro = _check_pro_expiry(row["id"], conn)
             return {
                 "valid": True,
                 "username": row["username"],
                 "user_id": row["id"],
                 "coins": row["coins"],
-                "pro": row["pro"],
+                "pro": 1 if pro else 0,
                 "is_admin": bool(row["is_admin"]),
             }
         return {"valid": False}
@@ -158,7 +201,7 @@ def deduct_coins(user_id: int, amount: int) -> dict:
         user = cur.fetchone()
         if not user:
             return {"success": False, "error": "User not found"}
-        if user["pro"]:
+        if _check_pro_expiry(user_id, conn):
             return {"success": True, "coins": user["coins"] or 0, "unlimited": True}
         current = user["coins"] if user["coins"] is not None else FREE_COINS
         if current < amount:
@@ -186,7 +229,13 @@ def use_promo_code(code: str, user_id: int) -> dict:
         if promo["type"] == "coins":
             cur.execute("UPDATE users SET coins = coins + %s WHERE id = %s", (promo["value"], user_id))
         elif promo["type"] == "pro":
-            cur.execute("UPDATE users SET pro = 1 WHERE id = %s", (user_id,))
+            duration = promo.get("duration", "")
+            if duration and duration != "forever" and duration in PRO_DURATIONS:
+                minutes = PRO_DURATIONS[duration]
+                expires = (datetime.now() + timedelta(minutes=minutes)).isoformat()
+                cur.execute("UPDATE users SET pro = 1, pro_expires = %s WHERE id = %s", (expires, user_id,))
+            else:
+                cur.execute("UPDATE users SET pro = 1, pro_expires = '' WHERE id = %s", (user_id,))
         elif promo["type"] == "ban":
             cur.execute("UPDATE users SET banned = 1, ban_reason = 'Забанен промокодом' WHERE id = %s", (user_id,))
             conn.commit()
@@ -212,7 +261,7 @@ def admin_get_users(token: str) -> dict:
     conn = _get_db()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, username, coins, pro, banned, ban_reason FROM users")
+        cur.execute("SELECT id, username, coins, pro, pro_expires, banned, ban_reason FROM users")
         rows = cur.fetchall()
         return {"success": True, "users": [dict(r) for r in rows]}
     finally:
@@ -232,15 +281,15 @@ def admin_get_promos(token: str) -> dict:
         conn.close()
 
 
-def admin_create_promo(token: str, code: str, promo_type: str, value: int = 0) -> dict:
+def admin_create_promo(token: str, code: str, promo_type: str, value: int = 0, duration: str = "") -> dict:
     if not is_admin(token):
         return {"success": False, "error": "Not admin"}
     conn = _get_db()
     cur = conn.cursor()
     try:
         cur.execute(
-            "INSERT INTO promo_codes (code, type, value, created_at) VALUES (%s, %s, %s, %s)",
-            (code.upper(), promo_type, value, datetime.now().isoformat()),
+            "INSERT INTO promo_codes (code, type, value, duration, created_at) VALUES (%s, %s, %s, %s, %s)",
+            (code.upper(), promo_type, value, duration, datetime.now().isoformat()),
         )
         conn.commit()
         return {"success": True}
@@ -313,7 +362,7 @@ def admin_toggle_pro(token: str, user_id: int) -> dict:
         cur.execute("SELECT pro FROM users WHERE id = %s", (user_id,))
         user = cur.fetchone()
         new_val = 0 if user["pro"] else 1
-        cur.execute("UPDATE users SET pro = %s WHERE id = %s", (new_val, user_id))
+        cur.execute("UPDATE users SET pro = %s, pro_expires = '' WHERE id = %s", (new_val, user_id))
         conn.commit()
         return {"success": True, "pro": new_val}
     finally:

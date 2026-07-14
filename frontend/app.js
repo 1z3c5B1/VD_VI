@@ -596,9 +596,14 @@ async function loadAdminUsers() {
         const data = await res.json();
         if (!data.success) return;
         const el = document.getElementById('adminUsersList');
-        el.innerHTML = data.users.map(u => `
+        el.innerHTML = data.users.map(u => {
+            let proLabel = '';
+            if (u.pro) {
+                proLabel = u.pro_expires ? '⭐PRO ⏰' : '⭐PRO ∞';
+            }
+            return `
             <div class="admin-item">
-                <span>${escapeHtml(u.username)} (id:${u.id}) — 💎${u.coins} ${u.pro ? '⭐PRO' : ''} ${u.banned ? '🚫BANNED' + (u.ban_reason ? ' (' + escapeHtml(u.ban_reason) + ')' : '') : ''}</span>
+                <span>${escapeHtml(u.username)} (id:${u.id}) — 💎${u.coins} ${proLabel} ${u.banned ? '🚫BANNED' + (u.ban_reason ? ' (' + escapeHtml(u.ban_reason) + ')' : '') : ''}</span>
                 <div class="admin-actions">
                     <button class="btn btn-small" onclick="adminSetCoins(${u.id})">💎</button>
                     <button class="btn btn-small" onclick="adminTogglePro(${u.id})">⭐</button>
@@ -608,8 +613,8 @@ async function loadAdminUsers() {
                     }
                     <button class="btn btn-small btn-danger" onclick="adminDeleteUser(${u.id})">🗑</button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     } catch {}
 }
 
@@ -621,27 +626,36 @@ async function loadAdminPromos() {
         const data = await res.json();
         if (!data.success) return;
         const el = document.getElementById('adminPromosList');
-        el.innerHTML = data.promos.map(p => `
+        el.innerHTML = data.promos.map(p => {
+            const durLabel = p.duration ? ` ⏰${p.duration}` : '';
+            return `
             <div class="admin-item">
-                <span>${escapeHtml(p.code)} — ${p.type} ${p.value ? '(' + p.value + ')' : ''} ${p.used_by ? '✅ used' : '🟡 unused'}</span>
+                <span>${escapeHtml(p.code)} — ${p.type} ${p.value ? '(' + p.value + ')' : ''}${durLabel} ${p.used_by ? '✅ used' : '🟡 unused'}</span>
                 <div class="admin-actions">
                     <button class="btn btn-small btn-danger" onclick="adminDeletePromo('${escapeHtml(p.code)}')">🗑</button>
                 </div>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
     } catch {}
+}
+
+function togglePromoDuration() {
+    const type = document.getElementById('adminPromoType').value;
+    const dur = document.getElementById('adminPromoDuration');
+    dur.style.display = type === 'pro' ? '' : 'none';
 }
 
 async function adminCreatePromo() {
     const code = document.getElementById('adminPromoCode').value.trim();
     const type = document.getElementById('adminPromoType').value;
     const value = parseInt(document.getElementById('adminPromoValue').value) || 0;
+    const duration = document.getElementById('adminPromoDuration').value;
     if (!code) return;
     try {
         await fetch(`${API_BASE}/api/admin/promo`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ code, type, value }),
+            body: JSON.stringify({ code, type, value, duration }),
         });
         document.getElementById('adminPromoCode').value = '';
         loadAdminPromos();

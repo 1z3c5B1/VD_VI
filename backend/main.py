@@ -86,6 +86,7 @@ class AdminPromoRequest(BaseModel):
     code: str
     type: str
     value: int = 0
+    duration: str = ""
 
 
 class AdminCoinsRequest(BaseModel):
@@ -537,7 +538,7 @@ async def api_admin_promos(authorization: Optional[str] = Header(None)):
 @app.post("/api/admin/promo")
 async def api_admin_create_promo(req: AdminPromoRequest, authorization: Optional[str] = Header(None)):
     token = authorization.replace("Bearer ", "") if authorization else ""
-    result = admin_create_promo(token, req.code, req.type, req.value)
+    result = admin_create_promo(token, req.code, req.type, req.value, req.duration)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
