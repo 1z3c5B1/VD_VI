@@ -200,7 +200,7 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
 
 async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int):
-    """Edit image via Hugging Face free Serverless Inference API (InstructPix2Pix)"""
+    """Edit image via Pollinations free GET API (klein model)"""
     try:
         import io
         from PIL import Image
@@ -209,35 +209,40 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
         img = img.convert("RGB")
         img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
 
-        HF_TOKEN = os.environ.get("HF_TOKEN", "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")
+        print(f"[Edit] Uploading to media...")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        clean_bytes = buf.getvalue()
 
-        for model in [
-            "timbrooks/instruct-pix2pix",
-            "runwayml/stable-diffusion-img2img",
-        ]:
-            MODEL_URL = f"https://api-inference.huggingface.co/models/{model}"
-            print(f"[Edit/HF] Trying {model}: '{prompt[:50]}...'")
+        upload_resp = await asyncio.to_thread(
+            requests.post,
+            "https://media.pollinations.ai/upload",
+            files={"file": ("image.jpg", clean_bytes, "image/jpeg")},
+            timeout=30,
+        )
 
-            buf = io.BytesIO()
-            img.save(buf, format="JPEG", quality=90)
-            clean_bytes = buf.getvalue()
+        if upload_resp.status_code != 200:
+            print(f"[Edit] Upload failed: {upload_resp.status_code}")
+            return None
 
-            resp = await asyncio.to_thread(
-                requests.post,
-                MODEL_URL,
-                data=clean_bytes,
-                headers={
-                    "Authorization": f"Bearer {HF_TOKEN}",
-                    "Content-Type": "image/jpeg",
-                    "X-Prompt": prompt,
-                },
-                timeout=60,
-            )
+        image_url = upload_resp.text.strip()
+        print(f"[Edit] Uploaded: {image_url}")
 
-            print(f"[Edit/HF] {model}: Status={resp.status_code}, CT={resp.headers.get('content-type', '?')}, Size={len(resp.content)}")
+        encoded_prompt = requests.utils.quote(prompt)
+        edit_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=klein&image={image_url}&width={width}&height={height}&seed={int(uuid.uuid4().int % 999999)}"
 
-            if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
-                result_img = Image.open(io.BytesIO(resp.content))
+        print(f"[Edit] Requesting: {edit_url[:120]}...")
+        resp = await asyncio.to_thread(
+            requests.get,
+            edit_url,
+            timeout=120,
+        )
+
+        print(f"[Edit] Status: {resp.status_code}, CT: {resp.headers.get('content-type', '?')}, Size: {len(resp.content)}")
+
+        if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
+            result_img = Image.open(io.BytesIO(resp.content))
+            if result_img.size[0] > 10 and result_img.size[1] > 10:
                 out_buf = io.BytesIO()
                 result_img.save(out_buf, format="PNG")
                 img_bytes = out_buf.getvalue()
@@ -247,15 +252,14 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
                     filepath = STATIC_DIR / filename
                     with open(filepath, "wb") as f:
                         f.write(img_bytes)
-                    print(f"[Edit/HF] Saved: {filename} ({len(img_bytes)} bytes)")
+                    print(f"[Edit] Saved: {filename} ({len(img_bytes)} bytes)")
                     return {"url": f"/static/generated/{filename}", "filename": filename}
 
-            print(f"[Edit/HF] {model} failed: {resp.status_code}")
-
+        print(f"[Edit] Failed")
         return None
 
     except Exception as e:
-        print(f"[Edit/HF] Exception: {e}")
+        print(f"[Edit] Exception: {e}")
         return None
 
 
