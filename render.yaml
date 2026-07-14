@@ -11,4 +11,5 @@ services:
         value: pk_j1VCcxAp2GYeMzyx
       - key: HF_TOKEN
         sync: false
-
+      - key: DATABASE_URL
+        value: postgresql://neondb_owner:npg_F4z0ptYdlReZ@ep-young-bird-ai80pckg.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require

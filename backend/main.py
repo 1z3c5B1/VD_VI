@@ -358,8 +358,15 @@ async def api_me(authorization: Optional[str] = Header(None)):
 CHAT_MODELS = {
     "vdai": "openai",
     "openai": "openai",
-    "llama": "llama",
-    "mistral": "mistral",
+}
+
+CHAT_PERSONAS = {
+    "vdai": "Ты VDAI — умный, дружелюбный ИИ-ассистент. Отвечай на русском языке, будь полезным и конкретным. Не используй эмодзи.",
+    "openai": "You are a helpful AI assistant. Answer concisely and accurately.",
+    "claude": "You are Claude, an AI assistant made by Anthropic. Be helpful, harmless, and honest. Answer concisely.",
+    "mistral": "You are Mistral, a helpful AI assistant. Answer concisely and accurately in the user's language.",
+    "gemini": "You are Gemini, Google's AI assistant. Be helpful and concise. Answer in the user's language.",
+    "llama": "You are Llama, Meta's open-source AI assistant. Be helpful and concise. Answer in the user's language.",
 }
 
 
@@ -368,35 +375,45 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
     _require_auth(authorization)
     try:
         api_model = CHAT_MODELS.get(req.model, "openai")
-        full_prompt = f"{req.system_prompt}\n\n"
+        system_prompt = CHAT_PERSONAS.get(req.model, req.system_prompt)
+
+        messages = [{"role": "system", "content": system_prompt}]
         for msg in req.history:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            full_prompt += f"{role}: {content}\n"
-        full_prompt += f"user: {req.message}\nassistant:"
+            messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": req.message})
 
-        print(f"[Chat] Model={api_model}, prompt_len={len(full_prompt)}")
+        print(f"[Chat] Model={req.model} -> API={api_model}, msgs={len(messages)}")
+
+        payload = {
+            "model": api_model,
+            "messages": messages,
+            "stream": False,
+        }
 
         try:
             resp = await asyncio.to_thread(
-                requests.get,
-                f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
-                params={"model": api_model},
-                timeout=30
+                requests.post,
+                "https://text.pollinations.ai/openai",
+                json=payload,
+                timeout=45,
             )
         except requests.Timeout:
-            print("[Chat] Timeout, trying without model param")
+            print("[Chat] Timeout, retrying...")
             resp = await asyncio.to_thread(
-                requests.get,
-                f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
-                timeout=30
+                requests.post,
+                "https://text.pollinations.ai/openai",
+                json=payload,
+                timeout=45,
             )
 
         if resp.status_code != 200:
             print(f"[Chat] Error {resp.status_code}: {resp.text[:200]}")
             raise HTTPException(status_code=502, detail=f"Ошибка чата. Попробуй позже.")
 
-        reply = resp.text.strip()
+        data = resp.json()
+        reply = data.get("choices", [{}])[0].get("message", {}).get("content", "").strip()
         if not reply:
             raise HTTPException(status_code=502, detail="Пустой ответ от модели")
 
