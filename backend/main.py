@@ -93,6 +93,10 @@ class AdminCoinsRequest(BaseModel):
     coins: int
 
 
+class AdminBanRequest(BaseModel):
+    reason: str = ""
+
+
 def _require_auth(authorization: Optional[str]):
     if not authorization:
         raise HTTPException(status_code=401, detail="No token")
@@ -371,14 +375,22 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
             full_prompt += f"{role}: {content}\n"
         full_prompt += f"user: {req.message}\nassistant:"
 
-        print(f"[Chat] Model={api_model}")
+        print(f"[Chat] Model={api_model}, prompt_len={len(full_prompt)}")
 
-        resp = await asyncio.to_thread(
-            requests.get,
-            f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
-            params={"model": api_model},
-            timeout=60
-        )
+        try:
+            resp = await asyncio.to_thread(
+                requests.get,
+                f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
+                params={"model": api_model},
+                timeout=30
+            )
+        except requests.Timeout:
+            print("[Chat] Timeout, trying without model param")
+            resp = await asyncio.to_thread(
+                requests.get,
+                f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
+                timeout=30
+            )
 
         if resp.status_code != 200:
             print(f"[Chat] Error {resp.status_code}: {resp.text[:200]}")
@@ -511,9 +523,10 @@ async def api_admin_delete_promo(code: str, authorization: Optional[str] = Heade
 
 
 @app.post("/api/admin/ban/{user_id}")
-async def api_admin_ban(user_id: int, authorization: Optional[str] = Header(None)):
+async def api_admin_ban(user_id: int, req: AdminBanRequest = None, authorization: Optional[str] = Header(None)):
     token = authorization.replace("Bearer ", "") if authorization else ""
-    result = admin_ban_user(token, user_id)
+    reason = req.reason if req else ""
+    result = admin_ban_user(token, user_id, reason)
     if not result["success"]:
         raise HTTPException(status_code=403, detail=result["error"])
     return result

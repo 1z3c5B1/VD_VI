@@ -20,7 +20,8 @@ def _get_db():
             pass_hash TEXT,
             coins INTEGER DEFAULT 10,
             pro INTEGER DEFAULT 0,
-            banned INTEGER DEFAULT 0
+            banned INTEGER DEFAULT 0,
+            ban_reason TEXT DEFAULT ''
         )
     """)
     conn.execute("""
@@ -39,9 +40,10 @@ def _get_db():
             created_at TEXT
         )
     """)
-    for col in ["coins", "pro", "banned"]:
+    for col in ["coins", "pro", "banned", "ban_reason"]:
         try:
-            conn.execute(f"ALTER TABLE users ADD COLUMN {col} INTEGER DEFAULT {0 if col != 'coins' else FREE_COINS}")
+            default = FREE_COINS if col == "coins" else ("''" if col == "ban_reason" else 0)
+            conn.execute(f"ALTER TABLE users ADD COLUMN {col} DEFAULT {default}")
         except sqlite3.OperationalError:
             pass
     conn.commit()
@@ -73,13 +75,14 @@ def login(username: str, password: str) -> dict:
     try:
         pass_hash = hashlib.sha256(password.encode()).hexdigest()
         user = conn.execute(
-            "SELECT id, banned, coins, pro FROM users WHERE username = ? AND pass_hash = ?",
+            "SELECT id, banned, ban_reason, coins, pro FROM users WHERE username = ? AND pass_hash = ?",
             (username, pass_hash),
         ).fetchone()
         if not user:
             return {"success": False, "error": "Неверное имя или пароль"}
         if user["banned"]:
-            return {"success": False, "error": "Аккаунт заблокирован"}
+            reason = user["ban_reason"] or "Без причины"
+            return {"success": False, "error": f"Аккаунт заблокирован. Причина: {reason}"}
         token = secrets.token_hex(16)
         conn.execute("INSERT INTO sessions (token, user_id) VALUES (?, ?)", (token, user["id"]))
         conn.commit()
@@ -98,13 +101,14 @@ def verify_token(token: str) -> dict:
     conn = _get_db()
     try:
         row = conn.execute(
-            "SELECT u.username, u.id, u.coins, u.pro, u.banned, s.is_admin "
+            "SELECT u.username, u.id, u.coins, u.pro, u.banned, u.ban_reason, s.is_admin "
             "FROM sessions s JOIN users u ON s.user_id = u.id WHERE s.token = ?",
             (token,),
         ).fetchone()
         if row:
             if row["banned"]:
-                return {"valid": False, "error": "Аккаунт заблокирован"}
+                reason = row["ban_reason"] or "Без причины"
+                return {"valid": False, "error": f"Аккаунт заблокирован. Причина: {reason}"}
             return {
                 "valid": True,
                 "username": row["username"],
@@ -163,7 +167,7 @@ def use_promo_code(code: str, user_id: int) -> dict:
         elif promo["type"] == "pro":
             conn.execute("UPDATE users SET pro = 1 WHERE id = ?", (user_id,))
         elif promo["type"] == "ban":
-            conn.execute("UPDATE users SET banned = 1 WHERE id = ?", (user_id,))
+            conn.execute("UPDATE users SET banned = 1, ban_reason = 'Забанен промокодом' WHERE id = ?", (user_id,))
             conn.commit()
             return {"success": False, "error": "Аккаунт заблокирован"}
 
@@ -185,7 +189,7 @@ def admin_get_users(token: str) -> dict:
         return {"success": False, "error": "Not admin"}
     conn = _get_db()
     try:
-        rows = conn.execute("SELECT id, username, coins, pro, banned FROM users").fetchall()
+        rows = conn.execute("SELECT id, username, coins, pro, banned, ban_reason FROM users").fetchall()
         return {"success": True, "users": [dict(r) for r in rows]}
     finally:
         conn.close()
@@ -231,12 +235,13 @@ def admin_delete_promo(token: str, code: str) -> dict:
         conn.close()
 
 
-def admin_ban_user(token: str, user_id: int) -> dict:
+def admin_ban_user(token: str, user_id: int, reason: str = "") -> dict:
     if not is_admin(token):
         return {"success": False, "error": "Not admin"}
     conn = _get_db()
     try:
-        conn.execute("UPDATE users SET banned = 1 WHERE id = ?", (user_id,))
+        conn.execute("UPDATE users SET banned = 1, ban_reason = ? WHERE id = ?", (reason or "Без причины", user_id))
+        conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
         conn.commit()
         return {"success": True}
     finally:
@@ -248,7 +253,7 @@ def admin_unban_user(token: str, user_id: int) -> dict:
         return {"success": False, "error": "Not admin"}
     conn = _get_db()
     try:
-        conn.execute("UPDATE users SET banned = 0 WHERE id = ?", (user_id,))
+        conn.execute("UPDATE users SET banned = 0, ban_reason = '' WHERE id = ?", (user_id,))
         conn.commit()
         return {"success": True}
     finally:

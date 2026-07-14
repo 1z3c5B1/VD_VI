@@ -593,7 +593,7 @@ async function loadAdminUsers() {
         const el = document.getElementById('adminUsersList');
         el.innerHTML = data.users.map(u => `
             <div class="admin-item">
-                <span>${escapeHtml(u.username)} (id:${u.id}) — 💎${u.coins} ${u.pro ? '⭐PRO' : ''} ${u.banned ? '🚫BANNED' : ''}</span>
+                <span>${escapeHtml(u.username)} (id:${u.id}) — 💎${u.coins} ${u.pro ? '⭐PRO' : ''} ${u.banned ? '🚫BANNED' + (u.ban_reason ? ' (' + escapeHtml(u.ban_reason) + ')' : '') : ''}</span>
                 <div class="admin-actions">
                     <button class="btn btn-small" onclick="adminSetCoins(${u.id})">💎</button>
                     <button class="btn btn-small" onclick="adminTogglePro(${u.id})">⭐</button>
@@ -655,11 +655,13 @@ async function adminDeletePromo(code) {
 }
 
 async function adminBan(userId) {
-    if (!confirm(`Забанить пользователя ${userId}?`)) return;
+    const reason = prompt(`Причина бана для ${userId}? (оставь пустым если без причины)`);
+    if (reason === null) return;
     try {
         await fetch(`${API_BASE}/api/admin/ban/${userId}`, {
             method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` },
+            headers: { 'Authorization': `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reason }),
         });
         loadAdminUsers();
     } catch {}
