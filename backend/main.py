@@ -159,7 +159,7 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
 
 async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int):
-    """Edit image via Hugging Face Inference API (free tier: $0.10/month)"""
+    """Edit image via Hugging Face Inference Providers (free tier: $0.10/month)"""
     try:
         import io
         from PIL import Image
@@ -173,17 +173,19 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
 
         b64_image = base64.b64encode(clean_bytes).decode()
 
-        models = [
-            "timbrooks/instruct-pix2pix",
-            "black-forest-labs/FLUX.1-Kontext-dev",
+        endpoints = [
+            ("fal-ai", "black-forest-labs/FLUX.1-Kontext-dev"),
+            ("replicate", "black-forest-labs/FLUX.1-Kontext-dev"),
+            ("together", "black-forest-labs/FLUX.2-dev"),
         ]
 
-        for model in models:
-            print(f"[Edit/HF] Trying {model}...")
+        for provider, model in endpoints:
+            url = f"https://router.huggingface.co/{provider}/models/{model}"
+            print(f"[Edit/HF] Trying {provider}/{model}...")
             try:
                 resp = await asyncio.to_thread(
                     requests.post,
-                    f"https://router.huggingface.co/hf-inference/models/{model}",
+                    url,
                     headers={"Authorization": f"Bearer {HF_TOKEN}"},
                     json={
                         "inputs": b64_image,
@@ -197,22 +199,22 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
                 )
 
                 ct = resp.headers.get("content-type", "none")
-                print(f"[Edit/HF] {model}: status={resp.status_code}, ct={ct}, size={len(resp.content)}")
+                print(f"[Edit/HF] {provider}/{model}: status={resp.status_code}, ct={ct}, size={len(resp.content)}")
 
                 if resp.status_code == 200 and "image" in ct and len(resp.content) > 5000:
                     filename = f"edit_{uuid.uuid4().hex}.png"
                     filepath = STATIC_DIR / filename
                     with open(filepath, "wb") as f:
                         f.write(resp.content)
-                    print(f"[Edit/HF] Saved ({model}): {filename}")
+                    print(f"[Edit/HF] Saved ({provider}/{model}): {filename}")
                     return {"url": f"/static/generated/{filename}", "filename": filename}
                 elif resp.status_code == 503:
                     print(f"[Edit/HF] Model loading, trying next...")
                     continue
                 else:
-                    print(f"[Edit/HF] Failed: {resp.text[:200]}")
+                    print(f"[Edit/HF] Failed: {resp.text[:300]}")
             except Exception as e:
-                print(f"[Edit/HF] Error {model}: {e}")
+                print(f"[Edit/HF] Error {provider}/{model}: {e}")
                 continue
 
         return None
