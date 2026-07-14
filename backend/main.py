@@ -1,3 +1,4 @@
+import os
 import asyncio
 import base64
 import uuid
@@ -199,48 +200,54 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
 
 async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int):
-    """Edit image via Hugging Face Inference Providers (free tier: $0.10/month)"""
+    """Edit image via Hugging Face free Serverless Inference API (InstructPix2Pix)"""
     try:
         import io
         from PIL import Image
-        from huggingface_hub import InferenceClient
 
         img = Image.open(io.BytesIO(image_bytes))
         img = img.convert("RGB")
         img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
 
-        providers = ["fal-ai", "replicate", "together"]
-        model = "black-forest-labs/FLUX.1-Kontext-dev"
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        img_b64 = __import__("base64").b64encode(buf.getvalue()).decode()
 
-        for provider in providers:
-            print(f"[Edit/HF] Trying {provider}/{model}...")
-            try:
-                client = InferenceClient(provider=provider, token=HF_TOKEN)
-                result = await asyncio.to_thread(
-                    client.image_to_image,
-                    model=model,
-                    prompt=prompt,
-                    image=img,
-                )
+        HF_TOKEN = os.environ.get("HF_TOKEN", "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")
+        MODEL_URL = "https://api-inference.huggingface.co/models/timbrooks/instruct-pix2pix"
 
-                buf = io.BytesIO()
-                result.save(buf, format="PNG")
-                img_bytes = buf.getvalue()
+        print(f"[Edit/HF] InstructPix2Pix: '{prompt[:50]}...'")
 
-                if len(img_bytes) > 5000:
-                    filename = f"edit_{uuid.uuid4().hex}.png"
-                    filepath = STATIC_DIR / filename
-                    with open(filepath, "wb") as f:
-                        f.write(img_bytes)
-                    print(f"[Edit/HF] Saved ({provider}): {filename} ({len(img_bytes)} bytes)")
-                    return {"url": f"/static/generated/{filename}", "filename": filename}
-                else:
-                    print(f"[Edit/HF] Result too small: {len(img_bytes)} bytes")
+        payload = {
+            "inputs": img_b64,
+            "parameters": {"prompt": prompt},
+        }
 
-            except Exception as e:
-                print(f"[Edit/HF] Error {provider}: {e}")
-                continue
+        resp = await asyncio.to_thread(
+            requests.post,
+            MODEL_URL,
+            json=payload,
+            headers={"Authorization": f"Bearer {HF_TOKEN}"},
+            timeout=60,
+        )
 
+        print(f"[Edit/HF] Status: {resp.status_code}, CT: {resp.headers.get('content-type', '?')}")
+
+        if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
+            result_img = Image.open(io.BytesIO(resp.content))
+            out_buf = io.BytesIO()
+            result_img.save(out_buf, format="PNG")
+            img_bytes = out_buf.getvalue()
+
+            if len(img_bytes) > 5000:
+                filename = f"edit_{uuid.uuid4().hex}.png"
+                filepath = STATIC_DIR / filename
+                with open(filepath, "wb") as f:
+                    f.write(img_bytes)
+                print(f"[Edit/HF] Saved: {filename} ({len(img_bytes)} bytes)")
+                return {"url": f"/static/generated/{filename}", "filename": filename}
+
+        print(f"[Edit/HF] Failed: {resp.status_code} {resp.text[:200]}")
         return None
 
     except Exception as e:
