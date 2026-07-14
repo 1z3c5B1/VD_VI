@@ -352,10 +352,10 @@ async def api_me(authorization: Optional[str] = Header(None)):
 
 
 CHAT_MODELS = {
-    "vdai": "deepseek-ai/DeepSeek-V3-0324",
-    "openai": "Qwen/Qwen3-235B-A22B",
-    "llama": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-    "mistral": "mistralai/Mistral-7B-Instruct-v0.3",
+    "vdai": "deepseek",
+    "openai": "openai",
+    "llama": "llama",
+    "mistral": "mistral",
 }
 
 
@@ -363,23 +363,20 @@ CHAT_MODELS = {
 async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
     _require_auth(authorization)
     try:
-        model = CHAT_MODELS.get(req.model, "deepseek-ai/DeepSeek-V3-0324")
-
-        messages = [{"role": "system", "content": req.system_prompt}]
+        api_model = CHAT_MODELS.get(req.model, "deepseek")
+        full_prompt = f"{req.system_prompt}\n\n"
         for msg in req.history:
-            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
-        messages.append({"role": "user", "content": req.message})
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            full_prompt += f"{role}: {content}\n"
+        full_prompt += f"user: {req.message}\nassistant:"
 
-        print(f"[Chat] Model={model}, messages={len(messages)}")
+        print(f"[Chat] Model={api_model}")
 
         resp = await asyncio.to_thread(
-            requests.post,
-            "https://router.huggingface.co/hf-inference/models/" + model,
-            headers={"Authorization": f"Bearer {HF_TOKEN}"},
-            json={
-                "messages": messages,
-                "max_tokens": 800,
-            },
+            requests.get,
+            f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
+            params={"model": api_model, "json": "true"},
             timeout=60
         )
 
@@ -387,12 +384,13 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
             print(f"[Chat] Error {resp.status_code}: {resp.text[:200]}")
             raise HTTPException(status_code=502, detail=f"API error: {resp.text[:200]}")
 
-        data = resp.json()
-        reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"reply": resp.text}
+        reply = data.get("reply", data.get("content", resp.text)).strip()
+
         if not reply:
             raise HTTPException(status_code=502, detail="Empty response from model")
 
-        return {"reply": reply.strip()}
+        return {"reply": reply}
     except HTTPException:
         raise
     except Exception as e:

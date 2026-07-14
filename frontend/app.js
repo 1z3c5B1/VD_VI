@@ -210,7 +210,8 @@ async function checkHealth() {
     }
 }
 
-document.getElementById('statusDot').addEventListener('click', () => {
+document.querySelector('.model-status').addEventListener('click', () => {
+    if (!authToken) return alert('Войдите в аккаунт');
     if (userIsAdmin) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
