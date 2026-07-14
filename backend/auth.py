@@ -137,10 +137,11 @@ def deduct_coins(user_id: int, amount: int) -> dict:
         if not user:
             return {"success": False, "error": "User not found"}
         if user["pro"]:
-            return {"success": True, "coins": user["coins"], "unlimited": True}
-        if user["coins"] < amount:
-            return {"success": False, "error": f"Нужно {amount} VD Coins, у тебя {user['coins']}. Пополни или купи PRO."}
-        conn.execute("UPDATE users SET coins = coins - ? WHERE id = ?", (amount, user_id))
+            return {"success": True, "coins": user["coins"] or 0, "unlimited": True}
+        current = user["coins"] if user["coins"] is not None else FREE_COINS
+        if current < amount:
+            return {"success": False, "error": f"Нужно {amount} VD Coins, у тебя {current}. Пополни или купи PRO."}
+        conn.execute("UPDATE users SET coins = ? WHERE id = ?", (current - amount, user_id))
         conn.commit()
         new_coins = conn.execute("SELECT coins FROM users WHERE id = ?", (user_id,)).fetchone()["coins"]
         return {"success": True, "coins": new_coins}

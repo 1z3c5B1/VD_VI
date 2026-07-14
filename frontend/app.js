@@ -210,7 +210,7 @@ async function checkHealth() {
     }
 }
 
-document.querySelector('.model-status').addEventListener('click', () => {
+function onStatusClick() {
     if (!authToken) return alert('Войдите в аккаунт');
     if (userIsAdmin) {
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -242,7 +242,7 @@ document.querySelector('.model-status').addEventListener('click', () => {
             alert(data.detail || 'Неверный пароль');
         }
     }).catch(() => alert('Ошибка'));
-});
+}
 
 // ---- Image Generation ----
 function getActiveStyle() {

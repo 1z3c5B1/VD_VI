@@ -352,7 +352,7 @@ async def api_me(authorization: Optional[str] = Header(None)):
 
 
 CHAT_MODELS = {
-    "vdai": "deepseek",
+    "vdai": "openai",
     "openai": "openai",
     "llama": "llama",
     "mistral": "mistral",
@@ -363,7 +363,7 @@ CHAT_MODELS = {
 async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
     _require_auth(authorization)
     try:
-        api_model = CHAT_MODELS.get(req.model, "deepseek")
+        api_model = CHAT_MODELS.get(req.model, "openai")
         full_prompt = f"{req.system_prompt}\n\n"
         for msg in req.history:
             role = msg.get("role", "user")
@@ -376,19 +376,17 @@ async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
         resp = await asyncio.to_thread(
             requests.get,
             f"https://text.pollinations.ai/{requests.utils.quote(full_prompt)}",
-            params={"model": api_model, "json": "true"},
+            params={"model": api_model},
             timeout=60
         )
 
         if resp.status_code != 200:
             print(f"[Chat] Error {resp.status_code}: {resp.text[:200]}")
-            raise HTTPException(status_code=502, detail=f"API error: {resp.text[:200]}")
+            raise HTTPException(status_code=502, detail=f"Ошибка чата. Попробуй позже.")
 
-        data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"reply": resp.text}
-        reply = data.get("reply", data.get("content", resp.text)).strip()
-
+        reply = resp.text.strip()
         if not reply:
-            raise HTTPException(status_code=502, detail="Empty response from model")
+            raise HTTPException(status_code=502, detail="Пустой ответ от модели")
 
         return {"reply": reply}
     except HTTPException:
