@@ -2,7 +2,7 @@ let userCoins = 0;
 let userIsPro = false;
 let userIsAdmin = false;
 
-const API_BASE = window.location.origin;
+const API_BASE = "https://vd-ai.onrender.com";
 let authToken = localStorage.getItem('vdai_token');
 let chatHistory = [];
 let lastImageResult = null;
