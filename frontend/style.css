@@ -190,7 +190,7 @@ header {
 
 .header-right { display: flex; align-items: center; gap: 20px; }
 
-.model-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.model-status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-muted); cursor: pointer; }
 
 .status-dot {
     width: 7px; height: 7px; border-radius: 50%;
@@ -795,3 +795,100 @@ footer {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* COINS */
+.coins-badge {
+    background: var(--bg-tertiary);
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+.coins-badge.pro {
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    color: #000;
+}
+
+/* PRO CARD */
+.pro-card {
+    max-width: 500px;
+    margin: 0 auto;
+    text-align: center;
+}
+.pro-card h3 {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+}
+.pro-price {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+    margin: 16px 0;
+}
+.pro-features {
+    list-style: none;
+    padding: 0;
+    text-align: left;
+    margin: 20px auto;
+    max-width: 350px;
+}
+.pro-features li {
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+}
+.pro-how {
+    background: var(--bg-tertiary);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 20px 0;
+    text-align: left;
+}
+.pro-how h4 {
+    margin-bottom: 8px;
+}
+.pro-how p {
+    margin: 4px 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+.promo-activate {
+    margin-top: 20px;
+}
+.promo-activate label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 600;
+}
+.promo-result {
+    margin-top: 8px;
+    font-size: 0.9rem;
+}
+
+/* ADMIN */
+.admin-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+}
+.admin-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--bg-tertiary);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.admin-actions {
+    display: flex;
+    gap: 4px;
+}
+.btn-danger {
+    background: var(--error) !important;
+    color: #fff !important;
+}

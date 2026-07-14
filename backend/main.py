@@ -14,7 +14,11 @@ from typing import Optional
 from backend.models.image_generator import ImageGenerator
 from backend.models.video_generator import VideoGenerator
 from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK, HF_TOKEN
-from backend.auth import register, login, verify_token
+from backend.auth import (
+    register, login, verify_token, deduct_coins, use_promo_code, is_admin, admin_login,
+    admin_get_users, admin_get_promos, admin_create_promo, admin_delete_promo,
+    admin_ban_user, admin_unban_user, admin_set_coins, admin_toggle_pro, admin_delete_user,
+)
 
 image_generator = ImageGenerator()
 video_generator = VideoGenerator()
@@ -74,6 +78,21 @@ class AuthRequest(BaseModel):
     password: str
 
 
+class PromoRequest(BaseModel):
+    code: str
+
+
+class AdminPromoRequest(BaseModel):
+    code: str
+    type: str
+    value: int = 0
+
+
+class AdminCoinsRequest(BaseModel):
+    user_id: int
+    coins: int
+
+
 def _require_auth(authorization: Optional[str]):
     if not authorization:
         raise HTTPException(status_code=401, detail="No token")
@@ -98,6 +117,10 @@ async def get_presets():
 async def generate_image(req: ImageRequest, authorization: Optional[str] = Header(None)):
     user = _require_auth(authorization)
     try:
+        coin_result = deduct_coins(user["user_id"], 1)
+        if not coin_result["success"]:
+            raise HTTPException(status_code=402, detail=coin_result["error"])
+        
         result = await asyncio.to_thread(
             image_generator.generate,
             prompt=req.prompt,
@@ -108,7 +131,11 @@ async def generate_image(req: ImageRequest, authorization: Optional[str] = Heade
             num_inference_steps=req.num_inference_steps,
             seed=req.seed,
         )
+        result["coins"] = coin_result.get("coins", 0)
+        result["unlimited"] = coin_result.get("unlimited", False)
         return result
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -118,6 +145,9 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
     user = _require_auth(authorization)
 
     try:
+        coin_result = deduct_coins(user["user_id"], 2)
+        if not coin_result["success"]:
+            raise HTTPException(status_code=402, detail=coin_result["error"])
         image_bytes = base64.b64decode(req.image_data.split(",")[-1] if "," in req.image_data else req.image_data)
 
         en_prompt = req.prompt
@@ -141,12 +171,17 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
         result = await _edit_with_hf(image_bytes, en_prompt, req.width, req.height)
         if result:
+            result["coins"] = coin_result.get("coins", 0)
+            result["unlimited"] = coin_result.get("unlimited", False)
             return result
 
         result = await _edit_with_pollinations(image_bytes, en_prompt, req.width, req.height)
         if result:
+            result["coins"] = coin_result.get("coins", 0)
+            result["unlimited"] = coin_result.get("unlimited", False)
             return result
 
+        deduct_coins(user["user_id"], -2)
         raise HTTPException(
             status_code=502,
             detail="Не удалось отредактировать. Попробуйте другой промпт."
@@ -317,10 +352,10 @@ async def api_me(authorization: Optional[str] = Header(None)):
 
 
 CHAT_MODELS = {
-    "vdai": "deepseek",
-    "openai": "openai",
-    "llama": "llama",
-    "mistral": "mistral",
+    "vdai": "deepseek-ai/DeepSeek-V3-0324",
+    "openai": "Qwen/Qwen3-235B-A22B",
+    "llama": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
+    "mistral": "mistralai/Mistral-7B-Instruct-v0.3",
 }
 
 
@@ -328,24 +363,36 @@ CHAT_MODELS = {
 async def chat(req: ChatRequest, authorization: Optional[str] = Header(None)):
     _require_auth(authorization)
     try:
-        api_model = CHAT_MODELS.get(req.model, "deepseek")
-        full_prompt = f"{req.system_prompt}\n\n"
+        model = CHAT_MODELS.get(req.model, "deepseek-ai/DeepSeek-V3-0324")
+
+        messages = [{"role": "system", "content": req.system_prompt}]
         for msg in req.history:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            full_prompt += f"{role}: {content}\n"
-        full_prompt += f"user: {req.message}\nassistant:"
+            messages.append({"role": msg.get("role", "user"), "content": msg.get("content", "")})
+        messages.append({"role": "user", "content": req.message})
+
+        print(f"[Chat] Model={model}, messages={len(messages)}")
 
         resp = await asyncio.to_thread(
-            requests.get,
-            f"https://gen.pollinations.ai/text/{requests.utils.quote(full_prompt)}",
-            params={"model": api_model, "max_tokens": 800},
-            headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
+            requests.post,
+            "https://router.huggingface.co/hf-inference/models/" + model,
+            headers={"Authorization": f"Bearer {HF_TOKEN}"},
+            json={
+                "messages": messages,
+                "max_tokens": 800,
+            },
             timeout=60
         )
+
         if resp.status_code != 200:
+            print(f"[Chat] Error {resp.status_code}: {resp.text[:200]}")
             raise HTTPException(status_code=502, detail=f"API error: {resp.text[:200]}")
-        return {"reply": resp.text.strip()}
+
+        data = resp.json()
+        reply = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        if not reply:
+            raise HTTPException(status_code=502, detail="Empty response from model")
+
+        return {"reply": reply.strip()}
     except HTTPException:
         raise
     except Exception as e:
@@ -409,6 +456,107 @@ async def api_gallery_delete(filename: str, authorization: Optional[str] = Heade
         filepath.unlink()
         return {"success": True, "message": "Deleted"}
     raise HTTPException(status_code=404, detail="File not found")
+
+
+@app.post("/api/admin/auth")
+async def api_admin_auth(req: PromoRequest, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No token")
+    token = authorization.replace("Bearer ", "")
+    result = admin_login(token, req.code)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.post("/api/promo")
+async def api_activate_promo(req: PromoRequest, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    result = use_promo_code(req.code.upper(), user["user_id"])
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.get("/api/admin/users")
+async def api_admin_users(authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_get_users(token)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.get("/api/admin/promos")
+async def api_admin_promos(authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_get_promos(token)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.post("/api/admin/promo")
+async def api_admin_create_promo(req: AdminPromoRequest, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_create_promo(token, req.code, req.type, req.value)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.delete("/api/admin/promo/{code}")
+async def api_admin_delete_promo(code: str, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_delete_promo(token, code)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.post("/api/admin/ban/{user_id}")
+async def api_admin_ban(user_id: int, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_ban_user(token, user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.post("/api/admin/unban/{user_id}")
+async def api_admin_unban(user_id: int, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_unban_user(token, user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.post("/api/admin/coins")
+async def api_admin_set_coins(req: AdminCoinsRequest, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_set_coins(token, req.user_id, req.coins)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.post("/api/admin/pro/{user_id}")
+async def api_admin_toggle_pro(user_id: int, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_toggle_pro(token, user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
+
+
+@app.delete("/api/admin/user/{user_id}")
+async def api_admin_delete_user(user_id: int, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_delete_user(token, user_id)
+    if not result["success"]:
+        raise HTTPException(status_code=403, detail=result["error"])
+    return result
 
 
 @app.get("/")

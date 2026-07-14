@@ -1,3 +1,7 @@
+let userCoins = 0;
+let userIsPro = false;
+let userIsAdmin = false;
+
 const API_BASE = window.location.origin;
 let authToken = localStorage.getItem('vdai_token');
 let chatHistory = [];
@@ -45,10 +49,13 @@ async function authLogin() {
         
         authToken = data.token;
         localStorage.setItem('vdai_token', authToken);
+        userCoins = data.coins || 0;
+        userIsPro = !!data.pro;
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('userName').textContent = data.username;
         document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
+        document.getElementById('userCoins').textContent = userCoins;
     } catch (err) {
         document.getElementById('authError').textContent = err.message;
     } finally {
@@ -83,10 +90,12 @@ async function authRegister() {
         
         authToken = data.token;
         localStorage.setItem('vdai_token', authToken);
+        userCoins = data.coins || 10;
         document.getElementById('authScreen').style.display = 'none';
         document.getElementById('userName').textContent = data.username;
         document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
+        document.getElementById('userCoins').textContent = userCoins;
     } catch (err) {
         document.getElementById('regError').textContent = err.message;
     } finally {
@@ -117,6 +126,14 @@ async function checkAuth() {
         document.getElementById('userName').textContent = data.username;
         document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
+        userCoins = data.coins || 0;
+        userIsPro = !!data.pro;
+        userIsAdmin = !!data.is_admin;
+        document.getElementById('userCoins').textContent = userCoins;
+        document.getElementById('coinsBadge').classList.toggle('pro', userIsPro);
+        if (userIsAdmin) {
+            document.getElementById('adminTab').classList.remove('hidden');
+        }
     } catch {
         localStorage.removeItem('vdai_token');
         authToken = null;
@@ -131,6 +148,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         btn.classList.add('active');
         document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
         if (btn.dataset.tab === 'gallery') loadGallery();
+        if (btn.dataset.tab === 'admin') loadAdminData();
     });
 });
 
@@ -192,6 +210,39 @@ async function checkHealth() {
     }
 }
 
+document.getElementById('statusDot').addEventListener('click', () => {
+    if (userIsAdmin) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelector('[data-tab="admin"]').classList.add('active');
+        document.getElementById('tab-admin').classList.add('active');
+        loadAdminData();
+        return;
+    }
+    const pw = prompt('Пароль админки:');
+    if (!pw) return;
+    fetch(`${API_BASE}/api/admin/auth`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ code: pw }),
+    }).then(r => r.json()).then(data => {
+        if (data.success) {
+            userIsAdmin = true;
+            document.getElementById('adminTab').classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('[data-tab="admin"]').classList.add('active');
+            document.getElementById('tab-admin').classList.add('active');
+            loadAdminData();
+        } else {
+            alert(data.detail || 'Неверный пароль');
+        }
+    }).catch(() => alert('Ошибка'));
+});
+
 // ---- Image Generation ----
 function getActiveStyle() {
     const active = document.querySelector('.style-tag.active');
@@ -247,7 +298,12 @@ async function generateImage() {
         img.src = `${API_BASE}${data.url}?t=${Date.now()}`;
 
         document.getElementById('imageInfo').textContent =
-            `Seed: ${data.seed} | ${document.getElementById('width').value}x${document.getElementById('height').value} | ${document.getElementById('steps').value} шагов`;
+            `Seed: ${data.seed} | ${document.getElementById('width').value}x${document.getElementById('height').value} | 💎 ${data.unlimited ? '∞' : data.coins}`;
+
+        if (data.coins !== undefined) {
+            userCoins = data.coins;
+            document.getElementById('userCoins').textContent = userCoins;
+        }
 
         loader.classList.add('hidden');
         result.classList.remove('hidden');
@@ -325,7 +381,12 @@ async function editImage() {
         img.src = `${API_BASE}${data.url}?t=${Date.now()}`;
 
         document.getElementById('imageInfo').textContent =
-            `Редактирование: "${editPrompt}"`;
+            `Редактирование: "${editPrompt}" | 💎 ${data.unlimited ? '∞' : data.coins}`;
+
+        if (data.coins !== undefined) {
+            userCoins = data.coins;
+            document.getElementById('userCoins').textContent = userCoins;
+        }
 
         loader.classList.add('hidden');
         result.classList.remove('hidden');
@@ -480,6 +541,171 @@ async function deleteFile(filename) {
     } catch (err) {
         alert('Ошибка удаления: ' + err.message);
     }
+}
+
+// ---- Promo Code ----
+async function activatePromo() {
+    const code = document.getElementById('promoCode').value.trim();
+    if (!code) return;
+    const resultEl = document.getElementById('promoResult');
+    resultEl.textContent = '';
+    try {
+        const res = await fetch(`${API_BASE}/api/promo`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Ошибка');
+        resultEl.style.color = '#4ade80';
+        resultEl.textContent = 'Промокод активирован!';
+        if (data.coins !== undefined) {
+            userCoins = data.coins;
+            document.getElementById('userCoins').textContent = userCoins;
+        }
+        if (data.pro !== undefined) {
+            userIsPro = !!data.pro;
+        }
+    } catch (err) {
+        resultEl.style.color = '#f87171';
+        resultEl.textContent = err.message;
+    }
+}
+
+// ---- Admin Panel ----
+async function loadAdminData() {
+    if (!userIsAdmin) return;
+    await loadAdminUsers();
+    await loadAdminPromos();
+}
+
+async function loadAdminUsers() {
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/users`, {
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        const data = await res.json();
+        if (!data.success) return;
+        const el = document.getElementById('adminUsersList');
+        el.innerHTML = data.users.map(u => `
+            <div class="admin-item">
+                <span>${escapeHtml(u.username)} (id:${u.id}) — 💎${u.coins} ${u.pro ? '⭐PRO' : ''} ${u.banned ? '🚫BANNED' : ''}</span>
+                <div class="admin-actions">
+                    <button class="btn btn-small" onclick="adminSetCoins(${u.id})">💎</button>
+                    <button class="btn btn-small" onclick="adminTogglePro(${u.id})">⭐</button>
+                    ${u.banned
+                        ? `<button class="btn btn-small" onclick="adminUnban(${u.id})">✅</button>`
+                        : `<button class="btn btn-small" onclick="adminBan(${u.id})">🚫</button>`
+                    }
+                    <button class="btn btn-small btn-danger" onclick="adminDeleteUser(${u.id})">🗑</button>
+                </div>
+            </div>
+        `).join('');
+    } catch {}
+}
+
+async function loadAdminPromos() {
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/promos`, {
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        const data = await res.json();
+        if (!data.success) return;
+        const el = document.getElementById('adminPromosList');
+        el.innerHTML = data.promos.map(p => `
+            <div class="admin-item">
+                <span>${escapeHtml(p.code)} — ${p.type} ${p.value ? '(' + p.value + ')' : ''} ${p.used_by ? '✅ used' : '🟡 unused'}</span>
+                <div class="admin-actions">
+                    <button class="btn btn-small btn-danger" onclick="adminDeletePromo('${escapeHtml(p.code)}')">🗑</button>
+                </div>
+            </div>
+        `).join('');
+    } catch {}
+}
+
+async function adminCreatePromo() {
+    const code = document.getElementById('adminPromoCode').value.trim();
+    const type = document.getElementById('adminPromoType').value;
+    const value = parseInt(document.getElementById('adminPromoValue').value) || 0;
+    if (!code) return;
+    try {
+        await fetch(`${API_BASE}/api/admin/promo`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ code, type, value }),
+        });
+        document.getElementById('adminPromoCode').value = '';
+        loadAdminPromos();
+    } catch {}
+}
+
+async function adminDeletePromo(code) {
+    if (!confirm(`Удалить промокод ${code}?`)) return;
+    try {
+        await fetch(`${API_BASE}/api/admin/promo/${code}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        loadAdminPromos();
+    } catch {}
+}
+
+async function adminBan(userId) {
+    if (!confirm(`Забанить пользователя ${userId}?`)) return;
+    try {
+        await fetch(`${API_BASE}/api/admin/ban/${userId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        loadAdminUsers();
+    } catch {}
+}
+
+async function adminUnban(userId) {
+    try {
+        await fetch(`${API_BASE}/api/admin/unban/${userId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        loadAdminUsers();
+    } catch {}
+}
+
+async function adminSetCoins(userId) {
+    const coins = prompt('Сколько coins поставить?');
+    if (coins === null) return;
+    try {
+        await fetch(`${API_BASE}/api/admin/coins`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ user_id: userId, coins: parseInt(coins) }),
+        });
+        loadAdminUsers();
+    } catch {}
+}
+
+async function adminTogglePro(userId) {
+    try {
+        await fetch(`${API_BASE}/api/admin/pro/${userId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        loadAdminUsers();
+    } catch {}
+}
+
+async function adminDeleteUser(userId) {
+    if (!confirm(`УДАЛИТЬ пользователя ${userId}? Это нельзя отменить!`)) return;
+    try {
+        await fetch(`${API_BASE}/api/admin/user/${userId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        loadAdminUsers();
+    } catch {}
 }
 
 // ---- Init ----

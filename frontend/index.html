@@ -46,6 +46,7 @@
                 <span id="statusText">Проверка...</span>
             </div>
             <div class="user-menu" id="userMenu">
+                <span class="coins-badge" id="coinsBadge">💎 <span id="userCoins">0</span></span>
                 <span class="user-avatar" id="userAvatar">U</span>
                 <span id="userName"></span>
                 <button class="btn btn-small" onclick="authLogout()">Выйти</button>
@@ -66,6 +67,14 @@
             <button class="tab-btn" data-tab="gallery">
                 <span class="tab-icon">🖼</span>
                 <span>Галерея</span>
+            </button>
+            <button class="tab-btn" data-tab="pro">
+                <span class="tab-icon">⭐</span>
+                <span>PRO</span>
+            </button>
+            <button class="tab-btn hidden" data-tab="admin" id="adminTab">
+                <span class="tab-icon">🔧</span>
+                <span>Админ</span>
             </button>
         </div>
 
@@ -231,6 +240,64 @@
                 <div class="gallery-grid" id="galleryGrid">
                     <p class="gallery-empty">Загрузка...</p>
                 </div>
+            </div>
+        </section>
+
+        <!-- TAB: PRO -->
+        <section id="tab-pro" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="panel-icon">⭐</span> VD AI PRO</h2>
+                </div>
+                <div class="pro-card">
+                    <h3>VD AI PRO</h3>
+                    <div class="pro-price">15 ₽ / навсегда</div>
+                    <ul class="pro-features">
+                        <li>✦ Безлимитная генерация картинок</li>
+                        <li>✦ Безлимитное редактирование</li>
+                        <li>✦ Безлимитный чат с GPT, Llama, Mistral</li>
+                        <li>✦ Все будущие функции</li>
+                    </ul>
+                    <div class="pro-how">
+                        <h4>Как получить?</h4>
+                        <p>1. Напиши в Discord: <b>Vadim20150011</b></p>
+                        <p>2. Отправь чек оплаты 15 ₽</p>
+                        <p>3. Получи промокод и активируй ниже</p>
+                    </div>
+                    <div class="promo-activate">
+                        <label>Активировать промокод</label>
+                        <div class="form-row">
+                            <input type="text" id="promoCode" placeholder="Введите код" style="flex:1">
+                            <button class="btn btn-primary" onclick="activatePromo()">Активировать</button>
+                        </div>
+                        <p id="promoResult" class="promo-result"></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: Admin -->
+        <section id="tab-admin" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="panel-icon">🔧</span> Админ-панель</h2>
+                </div>
+
+                <h3 style="margin-bottom:12px">Пользователи</h3>
+                <div id="adminUsersList" class="admin-list"></div>
+
+                <h3 style="margin:20px 0 12px">Промокоды</h3>
+                <div class="form-row" style="margin-bottom:12px">
+                    <input type="text" id="adminPromoCode" placeholder="Код" style="flex:1">
+                    <select id="adminPromoType">
+                        <option value="coins">Coins</option>
+                        <option value="pro">PRO</option>
+                        <option value="ban">Ban</option>
+                    </select>
+                    <input type="number" id="adminPromoValue" placeholder="Значение" value="10" style="width:80px">
+                    <button class="btn btn-primary" onclick="adminCreatePromo()">Создать</button>
+                </div>
+                <div id="adminPromosList" class="admin-list"></div>
             </div>
         </section>
     </main>
