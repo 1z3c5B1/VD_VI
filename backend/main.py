@@ -168,7 +168,7 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
         image_bytes = base64.b64decode(req.image_data.split(",")[-1] if "," in req.image_data else req.image_data)
 
-        result = await _edit_with_cloudinary(image_bytes, req.edit_type, req.prompt, req.width, req.height)
+        result = await _edit_with_pollinations_chain(image_bytes, req.prompt, req.width, req.height)
 
         if result:
             result["coins"] = coin_result.get("coins", 0)
@@ -184,11 +184,12 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _edit_with_cloudinary(image_bytes: bytes, edit_type: str, prompt: str, width: int, height: int):
-    """Edit image via Cloudinary API"""
+async def _edit_with_pollinations_chain(image_bytes: bytes, prompt: str, width: int, height: int):
+    """Upload to Cloudinary -> Edit via Pollinations klein -> Save result"""
     try:
         import io
         from PIL import Image
+        import urllib.parse
 
         img = Image.open(io.BytesIO(image_bytes))
         img = img.convert("RGB")
@@ -198,89 +199,58 @@ async def _edit_with_cloudinary(image_bytes: bytes, edit_type: str, prompt: str,
         img.save(buf, format="JPEG", quality=90)
         clean_bytes = buf.getvalue()
 
-        print(f"[Cloudinary] Uploading image ({len(clean_bytes)} bytes)...")
+        print(f"[Edit] Step 1: Upload to Cloudinary...")
         upload_result = cloudinary.uploader.upload(
             clean_bytes,
-            folder="vdai_edits",
-            public_id=f"edit_{uuid.uuid4().hex[:12]}",
+            folder="vdai_edit_chain",
+            public_id=f"chain_{uuid.uuid4().hex[:12]}",
         )
-        public_id = upload_result["public_id"]
-        print(f"[Cloudinary] Uploaded: {public_id}")
+        cld_url = upload_result["secure_url"]
+        print(f"[Edit] Cloudinary URL: {cld_url}")
 
-        transformations = []
+        en_prompt = prompt
+        ru_words = {
+            "закат": "sunset", "рассвет": "sunrise", "ночь": "night", "день": "day",
+            "красиво": "beautiful", "ярко": "bright", "тёмно": "dark",
+            "космос": "space", "океан": "ocean", "лес": "forest",
+            "город": "city", "дом": "house", "здание": "building",
+            "человек": "person", "женщина": "woman", "мужчина": "man",
+            "собака": "dog", "кот": "cat", "птица": "bird",
+            "цветы": "flowers", "облака": "clouds", "дождь": "rain",
+            "снег": "snow", "огонь": "fire", "вода": "water",
+            "гора": "mountain", "река": "river", "море": "sea",
+            "сделай": "make it", "добавь": "add", "убери": "remove",
+            "измени": "change", "замени": "replace", "увеличь": "make bigger",
+            "уменьши": "make smaller", "поменяй": "change to",
+            "фон": "background", "передний план": "foreground",
+            "стиль": "style", "ретро": "retro", "футуристичный": "futuristic",
+        }
+        lower = prompt.lower()
+        for ru, en in ru_words.items():
+            if ru in lower:
+                en_prompt = f"edit the image: {prompt}. Apply changes to the ENTIRE image."
+                break
 
-        if edit_type == "remove_bg":
-            transformations.append("e_bgremoval")
+        encoded_prompt = urllib.parse.quote(en_prompt)
+        edit_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=klein&image={urllib.parse.quote(cld_url)}&width={width}&height={height}&seed={int(uuid.uuid4().int % 999999)}"
 
-        elif edit_type == "replace_object" and prompt:
-            RU_TO_EN = {
-                "собака": "dog", "кот": "cat", "кошка": "cat", "человек": "person",
-                "машина": "car", "автомобиль": "car", "дом": "house", "дерево": "tree",
-                "цветок": "flower", "солнце": "sun", "луна": "moon", "звезда": "star",
-                "река": "river", "море": "sea", "гора": "mountain", "небо": "sky",
-                "туча": "cloud", "снег": "snow", "дождь": "rain", "ветер": "wind",
-                "自行车": "bicycle", "велосипед": "bicycle", "велосипед": "bike",
-                "самолет": "airplane", "самолёт": "airplane", "поезд": "train",
-                "стол": "table", "стул": "chair", "книга": "book", "телефон": "phone",
-                "компьютер": "computer", "ноутбук": "laptop", "ручка": "pen",
-                "карандаш": "pencil", "мяч": "ball", "шар": "ball",
-                "рыба": "fish", "птица": "bird", "птичка": "bird",
-                "красный": "red", "синий": "blue", "зеленый": "green",
-                "желтый": "yellow", "белый": "white", "черный": "black",
-                "розовый": "pink", "фиолетовый": "purple", "оранжевый": "orange",
-                "замени": "", "убери": "", "добавь": "", "измени": "",
-            }
-            parts = prompt.split("|")
-            if len(parts) == 2:
-                from_raw = parts[0].strip().lower()
-                to_raw = parts[1].strip().lower()
-                from_obj = RU_TO_EN.get(from_raw, from_raw)
-                to_obj = RU_TO_EN.get(to_raw, to_raw)
-                from_obj = "".join(c for c in from_obj if c.isascii() and c.isalnum())
-                to_obj = "".join(c for c in to_obj if c.isascii() and c.isalnum())
-                if from_obj and to_obj:
-                    transformations.append(f"e_gen_replace:from_{from_obj};to_{to_obj}")
-                else:
-                    return None
-            else:
-                return None
+        print(f"[Edit] Step 2: Pollinations editing...")
+        resp = await asyncio.to_thread(requests.get, edit_url, timeout=120)
+        print(f"[Edit] Pollinations: {resp.status_code}, {len(resp.content)} bytes, CT: {resp.headers.get('content-type', '?')}")
 
-        elif edit_type == "crop":
-            transformations.append(f"c_fill,w_{width},h_{height}")
-
-        elif edit_type == "resize":
-            transformations.append(f"c_limit,w_{width},h_{height}")
-
-        elif edit_type == "custom" and prompt:
-            transformations.append(f"e_gen_replace:from_object;to_{prompt}")
-
-        else:
-            transformations.append("e_bgremoval")
-
-        if transformations:
-            trans_str = "/".join(transformations)
-            result_url = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD}/image/upload/{trans_str}/{public_id}"
-        else:
-            result_url = upload_result["secure_url"]
-
-        print(f"[Cloudinary] Result URL: {result_url[:120]}...")
-
-        resp = await asyncio.to_thread(requests.get, result_url, timeout=30)
-        print(f"[Cloudinary] Download: {resp.status_code}, {len(resp.content)} bytes")
-
-        if resp.status_code == 200 and len(resp.content) > 1000:
+        if resp.status_code == 200 and "image" in resp.headers.get("content-type", "") and len(resp.content) > 1000:
             filename = f"edit_{uuid.uuid4().hex}.png"
             filepath = STATIC_DIR / filename
             with open(filepath, "wb") as f:
                 f.write(resp.content)
-            print(f"[Cloudinary] Saved: {filename}")
+            print(f"[Edit] Saved: {filename}")
             return {"url": f"/static/generated/{filename}", "filename": filename}
 
-        print(f"[Cloudinary] Download failed")
+        print(f"[Edit] Failed: {resp.status_code}")
         return None
 
     except Exception as e:
-        print(f"[Cloudinary] Exception: {e}")
+        print(f"[Edit] Exception: {e}")
         import traceback
         traceback.print_exc()
         return None
