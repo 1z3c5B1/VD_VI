@@ -233,7 +233,7 @@ async def _edit_image(image_bytes: bytes, edit_type: str, prompt: str, width: in
             resp = await asyncio.to_thread(requests.get, result_url, timeout=30)
             print(f"[Edit] Download: {resp.status_code}, {len(resp.content)} bytes")
 
-            if resp.status_code == 200 and len(resp.content) > 1000:
+            if resp.status_code == 200 and len(resp.content) > 100:
                 filename = f"edit_{uuid.uuid4().hex}.png"
                 filepath = STATIC_DIR / filename
                 with open(filepath, "wb") as f:
