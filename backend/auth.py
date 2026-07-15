@@ -62,6 +62,18 @@ def _init_db():
             created_at TEXT
         )
     """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            amount INTEGER,
+            coins INTEGER,
+            method TEXT DEFAULT 'sbp',
+            status TEXT DEFAULT 'pending',
+            email TEXT DEFAULT '',
+            created_at TEXT
+        )
+    """)
     for col in ["pro_expires"]:
         try:
             cur.execute(f"ALTER TABLE users ADD COLUMN {col} TEXT DEFAULT ''")
@@ -379,5 +391,83 @@ def admin_delete_user(token: str, user_id: int) -> dict:
         cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
         conn.commit()
         return {"success": True}
+    finally:
+        conn.close()
+
+
+def create_payment(user_id: int, amount: int, method: str, email: str = "") -> dict:
+    coins = amount * 2
+    conn = _get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "INSERT INTO payments (user_id, amount, coins, method, status, email, created_at) VALUES (%s, %s, %s, %s, 'pending', %s, %s) RETURNING id",
+            (user_id, amount, coins, method, email, datetime.now().isoformat())
+        )
+        payment_id = cur.fetchone()["id"]
+        conn.commit()
+        return {"success": True, "payment_id": payment_id, "coins": coins}
+    finally:
+        conn.close()
+
+
+def get_user_payments(user_id: int) -> list:
+    conn = _get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, amount, coins, method, status, email, created_at FROM payments WHERE user_id = %s ORDER BY id DESC LIMIT 20", (user_id,))
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def admin_approve_payment(token: str, payment_id: int) -> dict:
+    if not is_admin(token):
+        return {"success": False, "error": "Not admin"}
+    conn = _get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM payments WHERE id = %s", (payment_id,))
+        payment = cur.fetchone()
+        if not payment:
+            return {"success": False, "error": "Payment not found"}
+        if payment["status"] != "pending":
+            return {"success": False, "error": "Already processed"}
+
+        cur.execute("UPDATE payments SET status = 'done' WHERE id = %s", (payment_id,))
+        cur.execute("UPDATE users SET coins = coins + %s WHERE id = %s", (payment["coins"], payment["user_id"]))
+        conn.commit()
+        return {"success": True, "coins_added": payment["coins"]}
+    finally:
+        conn.close()
+
+
+def admin_cancel_payment(token: str, payment_id: int) -> dict:
+    if not is_admin(token):
+        return {"success": False, "error": "Not admin"}
+    conn = _get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("UPDATE payments SET status = 'cancelled' WHERE id = %s AND status = 'pending'", (payment_id,))
+        conn.commit()
+        return {"success": True}
+    finally:
+        conn.close()
+
+
+def admin_get_payments(token: str) -> list:
+    if not is_admin(token):
+        return []
+    conn = _get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT p.id, p.user_id, u.username, p.amount, p.coins, p.method, p.status, p.email, p.created_at 
+            FROM payments p LEFT JOIN users u ON p.user_id = u.id 
+            ORDER BY p.id DESC LIMIT 50
+        """)
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
     finally:
         conn.close()

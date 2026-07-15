@@ -56,6 +56,12 @@ async function authLogin() {
         document.getElementById('userAvatar').textContent = data.username.charAt(0).toUpperCase();
         document.getElementById('userMenu').classList.add('active');
         document.getElementById('userCoins').textContent = userCoins;
+        if (document.getElementById('shopUserCoins')) {
+            document.getElementById('shopUserCoins').textContent = userCoins;
+        }
+        if (document.getElementById('shopUsername')) {
+            document.getElementById('shopUsername').textContent = data.username;
+        }
     } catch (err) {
         document.getElementById('authError').textContent = err.message;
     } finally {
@@ -133,6 +139,12 @@ async function checkAuth() {
         document.getElementById('coinsBadge').classList.toggle('pro', userIsPro);
         if (userIsAdmin) {
             document.getElementById('adminTab').classList.remove('hidden');
+        }
+        if (document.getElementById('shopUserCoins')) {
+            document.getElementById('shopUserCoins').textContent = userCoins;
+        }
+        if (document.getElementById('shopUsername')) {
+            document.getElementById('shopUsername').textContent = data.username;
         }
     } catch {
         localStorage.removeItem('vdai_token');
@@ -594,6 +606,7 @@ async function loadAdminData() {
     if (!userIsAdmin) return;
     await loadAdminUsers();
     await loadAdminPromos();
+    await loadAdminPayments();
 }
 
 async function loadAdminUsers() {
@@ -738,7 +751,338 @@ async function adminDeleteUser(userId) {
     } catch {}
 }
 
+// ---- Admin Payments ----
+async function loadAdminPayments() {
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/payments`, {
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        const data = await res.json();
+        if (!data.success) return;
+        const el = document.getElementById('adminPaymentsList');
+        const pending = data.payments.filter(p => p.status === 'pending');
+        if (pending.length === 0) {
+            el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">Нет ожидающих платежей</p>';
+            return;
+        }
+        el.innerHTML = pending.map(p => `
+            <div class="admin-item">
+                <span>
+                    #${p.id} | ${escapeHtml(p.username || '?')} | ${p.amount}₽ → ${p.coins}💎 | ${p.method} | ${p.email || '-'}
+                </span>
+                <div class="admin-actions">
+                    <button class="btn btn-small" onclick="adminApprovePayment(${p.id})" style="background:var(--success);color:#fff">✅</button>
+                    <button class="btn btn-small btn-danger" onclick="adminCancelPayment(${p.id})">✕</button>
+                </div>
+            </div>
+        `).join('');
+    } catch {}
+}
+
+async function adminApprovePayment(paymentId) {
+    try {
+        const res = await fetch(`${API_BASE}/api/admin/payment/${paymentId}/approve`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`Оплата подтверждена! +${data.coins_added}💎`);
+        } else {
+            alert(data.detail || 'Ошибка');
+        }
+        loadAdminPayments();
+    } catch {}
+}
+
+async function adminCancelPayment(paymentId) {
+    if (!confirm('Отменить платёж?')) return;
+    try {
+        await fetch(`${API_BASE}/api/admin/payment/${paymentId}/cancel`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` },
+        });
+        loadAdminPayments();
+    } catch {}
+}
+
+// ---- Video ----
+let lastVideoResult = null;
+
+function switchVideoMode(mode) {
+    document.querySelectorAll('#tab-video .mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#tab-video .mode-tab[data-mode="${mode}"]`).classList.add('active');
+    document.getElementById('videoTextMode').classList.toggle('hidden', mode !== 'text-video');
+    document.getElementById('videoPhotoMode').classList.toggle('hidden', mode !== 'photo-video');
+    document.getElementById('videoPlaceholder').classList.remove('hidden');
+    document.getElementById('videoResultContent').classList.add('hidden');
+}
+
+function onVideoFileSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+        alert('Файл слишком большой (макс 10MB)');
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = e => {
+        document.getElementById('videoUploadArea').classList.add('hidden');
+        const preview = document.getElementById('videoPreview');
+        preview.classList.remove('hidden');
+        document.getElementById('videoPreviewImg').src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+}
+
+function clearVideoFile() {
+    document.getElementById('videoFileInput').value = '';
+    document.getElementById('videoPreview').classList.add('hidden');
+    document.getElementById('videoUploadArea').classList.remove('hidden');
+}
+
+async function generateVideo() {
+    const prompt = document.getElementById('videoPrompt').value.trim();
+    if (!prompt) return alert('Введите описание видео');
+    if (!authToken) return alert('Войдите чтобы генерировать видео');
+
+    const loader = document.getElementById('videoLoader');
+    const placeholder = document.getElementById('videoPlaceholder');
+    const result = document.getElementById('videoResultContent');
+    const btn = document.getElementById('generateVideoBtn');
+
+    loader.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    result.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Генерация...';
+
+    try {
+        const res = await fetch(`${API_BASE}/api/generate/video`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                prompt: prompt,
+                model: document.getElementById('videoModel').value,
+                duration: parseInt(document.getElementById('videoDuration').value),
+                fps: parseInt(document.getElementById('videoFps').value),
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Ошибка генерации видео');
+        }
+
+        const data = await res.json();
+        lastVideoResult = data;
+
+        const vid = document.getElementById('generatedVideo');
+        vid.src = `${API_BASE}${data.url}?t=${Date.now()}`;
+
+        document.getElementById('videoInfo').textContent =
+            `Модель: ${data.model || 'unknown'} | ${data.duration}с | 💎 ${data.coins !== undefined ? data.coins : '?'}`;
+
+        loader.classList.add('hidden');
+        result.classList.remove('hidden');
+    } catch (err) {
+        loader.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        alert('Ошибка: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🎬 Сгенерировать видео';
+    }
+}
+
+function downloadVideo() {
+    if (!lastVideoResult) return;
+    const a = document.createElement('a');
+    a.href = `${API_BASE}${lastVideoResult.url}`;
+    a.download = lastVideoResult.filename || 'video.mp4';
+    a.click();
+}
+
+async function generateVideoFromPhoto() {
+    const fileInput = document.getElementById('videoFileInput');
+    if (!fileInput.files.length) return alert('Загрузи фото');
+    if (!authToken) return alert('Войдите чтобы генерировать видео');
+
+    const loader = document.getElementById('videoLoader');
+    const placeholder = document.getElementById('videoPlaceholder');
+    const result = document.getElementById('videoResultContent');
+    const btn = document.getElementById('generateVideoPhotoBtn');
+
+    loader.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    result.classList.add('hidden');
+    btn.disabled = true;
+    btn.textContent = 'Анимация...';
+    document.getElementById('videoLoaderText').textContent = 'Анимация фото... Это займёт 30-120 секунд';
+
+    try {
+        const previewImg = document.getElementById('videoPreviewImg');
+        const prompt = document.getElementById('videoPhotoPrompt').value.trim() || 'smooth subtle animation, cinematic movement';
+
+        const res = await fetch(`${API_BASE}/api/generate/video`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                prompt: prompt,
+                model: document.getElementById('videoPhotoModel').value,
+                duration: parseInt(document.getElementById('videoPhotoDuration').value),
+                fps: 10,
+                image_url: previewImg.src,
+            }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.detail || 'Ошибка анимации');
+        }
+
+        const data = await res.json();
+        lastVideoResult = data;
+
+        const vid = document.getElementById('generatedVideo');
+        vid.src = `${API_BASE}${data.url}?t=${Date.now()}`;
+
+        document.getElementById('videoInfo').textContent =
+            `Анимация фото | ${data.duration}с | 💎 ${data.coins !== undefined ? data.coins : '?'}`;
+
+        loader.classList.add('hidden');
+        result.classList.remove('hidden');
+    } catch (err) {
+        loader.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        alert('Ошибка: ' + err.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🎬 Анимировать фото';
+        document.getElementById('videoLoaderText').textContent = 'Генерация видео... Это займёт 30-120 секунд';
+    }
+}
+
+// ---- Shop / Buy Coins ----
+let selectedPayment = 'sbp';
+
+function updateCoinEstimate() {
+    const amount = parseInt(document.getElementById('shopAmount').value) || 0;
+    const coins = amount * 2;
+    document.getElementById('shopEstimate').innerHTML = `Получишь: <b>${coins} 💎 VD Coins</b>`;
+    document.getElementById('payBtnAmount').textContent = `${amount} ₽`;
+    document.getElementById('sbpAmount').textContent = `${amount} ₽`;
+    document.getElementById('cardAmount').textContent = `${amount} ₽`;
+    document.getElementById('qiwiAmount').textContent = `${amount} ₽`;
+    document.getElementById('cryptoAmount').textContent = `${amount} ₽ (~$${(amount * 0.011).toFixed(2)} USDT)`;
+
+    const username = document.getElementById('userName').textContent || 'USER';
+    const comment = `VD-${username}`;
+    document.getElementById('sbpComment').textContent = comment;
+    document.getElementById('sbpComment2').textContent = comment;
+    document.getElementById('qiwiComment').textContent = comment;
+}
+
+function setShopAmount(amount) {
+    document.getElementById('shopAmount').value = amount;
+    updateCoinEstimate();
+    document.querySelectorAll('.quick-amount-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function selectPayment(method) {
+    selectedPayment = method;
+    document.querySelectorAll('.payment-method-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.payment-method-btn[data-method="${method}"]`).classList.add('active');
+    document.getElementById('paymentSbp').classList.toggle('hidden', method !== 'sbp');
+    document.getElementById('paymentCard').classList.toggle('hidden', method !== 'card');
+    document.getElementById('paymentQiwi').classList.toggle('hidden', method !== 'qiwi');
+    document.getElementById('paymentCrypto').classList.toggle('hidden', method !== 'crypto');
+}
+
+function updateShopUsername() {
+    const el = document.getElementById('shopUsername');
+    if (el && authToken) {
+        const name = document.getElementById('userName').textContent;
+        if (name) el.value = name;
+    }
+}
+
+function copyPaymentNumber(el) {
+    const text = el.textContent.trim();
+    navigator.clipboard.writeText(text).then(() => {
+        el.style.borderColor = 'var(--success)';
+        setTimeout(() => { el.style.borderColor = ''; }, 1000);
+    });
+}
+
+async function createPayment() {
+    if (!authToken) return alert('Войдите чтобы купить монеты');
+
+    const amount = parseInt(document.getElementById('shopAmount').value);
+    if (!amount || amount < 10) return alert('Минимум 10 ₽');
+
+    const email = document.getElementById('shopEmail').value.trim();
+
+    try {
+        const res = await fetch(`${API_BASE}/api/shop/payment`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                amount: amount,
+                method: selectedPayment,
+                email: email,
+            }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || 'Ошибка');
+
+        if (data.payment_id) {
+            alert(`Заявка #${data.payment_id} создана!\n\nСумма: ${amount} ₽\nМетод: ${selectedPayment}\n\nМонеты будут начислены после подтверждения оплаты.\nДля вопросов пиши в Discord: 1z3c5B2`);
+            loadShopHistory();
+        }
+    } catch (err) {
+        alert('Ошибка: ' + err.message);
+    }
+}
+
+async function loadShopHistory() {
+    if (!authToken) return;
+    try {
+        const res = await fetch(`${API_BASE}/api/shop/history`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        const el = document.getElementById('shopHistory');
+        if (!data.payments || data.payments.length === 0) {
+            el.innerHTML = '<p class="gallery-empty">Пока нет покупок</p>';
+            return;
+        }
+        el.innerHTML = data.payments.map(p => {
+            const statusClass = p.status === 'done' ? 'status-done' : p.status === 'pending' ? 'status-pending' : 'status-cancelled';
+            const statusLabel = p.status === 'done' ? 'Оплачено' : p.status === 'pending' ? 'Ожидает' : 'Отменено';
+            return `<div class="shop-history-item">
+                <span>${p.amount} ₽ → ${p.coins} 💎</span>
+                <span>${new Date(p.created_at).toLocaleDateString('ru')}</span>
+                <span class="${statusClass}">${statusLabel}</span>
+            </div>`;
+        }).join('');
+    } catch {}
+}
+
 // ---- Init ----
 checkAuth();
 checkHealth();
 setInterval(checkHealth, 30000);
+updateCoinEstimate();
+updateShopUsername();

@@ -19,6 +19,7 @@ from backend.auth import (
     register, login, verify_token, deduct_coins, use_promo_code, is_admin, admin_login,
     admin_get_users, admin_get_promos, admin_create_promo, admin_delete_promo,
     admin_ban_user, admin_unban_user, admin_set_coins, admin_toggle_pro, admin_delete_user,
+    create_payment, get_user_payments, admin_approve_payment, admin_cancel_payment, admin_get_payments,
 )
 
 image_generator = ImageGenerator()
@@ -282,6 +283,54 @@ async def generate_video(req: VideoRequest, authorization: Optional[str] = Heade
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---- Shop ----
+class PaymentRequest(BaseModel):
+    amount: int = Field(ge=10, le=5000)
+    method: str = "sbp"
+    email: str = ""
+
+
+@app.post("/api/shop/payment")
+async def api_create_payment(req: PaymentRequest, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    result = create_payment(user["user_id"], req.amount, req.method, req.email)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result.get("error", "Ошибка"))
+    return result
+
+
+@app.get("/api/shop/history")
+async def api_shop_history(authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    payments = get_user_payments(user["user_id"])
+    return {"payments": payments}
+
+
+@app.post("/api/admin/payment/{payment_id}/approve")
+async def api_admin_approve_payment(payment_id: int, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_approve_payment(token, payment_id)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.post("/api/admin/payment/{payment_id}/cancel")
+async def api_admin_cancel_payment(payment_id: int, authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    result = admin_cancel_payment(token, payment_id)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+
+@app.get("/api/admin/payments")
+async def api_admin_payments(authorization: Optional[str] = Header(None)):
+    token = authorization.replace("Bearer ", "") if authorization else ""
+    payments = admin_get_payments(token)
+    return {"success": True, "payments": payments}
 
 
 @app.post("/api/register")

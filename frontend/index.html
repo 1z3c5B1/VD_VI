@@ -68,6 +68,14 @@
                 <span class="tab-icon">🖼</span>
                 <span>Галерея</span>
             </button>
+            <button class="tab-btn" data-tab="video">
+                <span class="tab-icon">🎬</span>
+                <span>Видео</span>
+            </button>
+            <button class="tab-btn" data-tab="shop">
+                <span class="tab-icon">💰</span>
+                <span>Магазин</span>
+            </button>
             <button class="tab-btn" data-tab="pro">
                 <span class="tab-icon">⭐</span>
                 <span>PRO</span>
@@ -303,6 +311,250 @@
             </div>
         </section>
 
+        <!-- TAB: Video -->
+        <section id="tab-video" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <div class="panel-mode-tabs">
+                        <button class="mode-tab active" data-mode="text-video" onclick="switchVideoMode('text-video')">
+                            <span class="mode-icon">📝</span> Текст → Видео
+                        </button>
+                        <button class="mode-tab" data-mode="photo-video" onclick="switchVideoMode('photo-video')">
+                            <span class="mode-icon">📷</span> Фото → Видео
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TEXT TO VIDEO MODE -->
+                <div id="videoTextMode">
+                    <div class="form-group">
+                        <label for="videoPrompt">Опиши видео</label>
+                        <textarea id="videoPrompt" rows="3" placeholder="Космический корабль летит сквозь туманность...">кот играет с клубком ниток</textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="videoModel">Модель</label>
+                            <select id="videoModel">
+                                <option value="ltx-2" selected>LTX-2</option>
+                                <option value="wan">Wan</option>
+                                <option value="wan-fast">Wan Fast</option>
+                                <option value="seedance">Seedance</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="videoDuration">Длительность</label>
+                            <select id="videoDuration">
+                                <option value="3">3 сек</option>
+                                <option value="5" selected>5 сек</option>
+                                <option value="8">8 сек</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="videoFps">FPS</label>
+                            <select id="videoFps">
+                                <option value="8">8</option>
+                                <option value="10" selected>10</option>
+                                <option value="15">15</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-full" id="generateVideoBtn" onclick="generateVideo()">
+                        🎬 Сгенерировать видео
+                    </button>
+                </div>
+
+                <!-- PHOTO TO VIDEO MODE -->
+                <div id="videoPhotoMode" class="hidden">
+                    <div class="upload-area" id="videoUploadArea" onclick="document.getElementById('videoFileInput').click()">
+                        <div class="upload-icon">📷</div>
+                        <p class="upload-text">Загрузи фото для анимации</p>
+                        <p class="upload-hint">PNG, JPG, WEBP — до 10MB</p>
+                        <input type="file" id="videoFileInput" accept="image/png,image/jpeg,image/webp" class="hidden" onchange="onVideoFileSelect(event)">
+                    </div>
+                    <div id="videoPreview" class="hidden">
+                        <img id="videoPreviewImg" src="" alt="Preview">
+                        <button class="btn btn-small" onclick="clearVideoFile()">✕ Убрать</button>
+                    </div>
+                    <div class="form-group">
+                        <label for="videoPhotoPrompt">Опиши движение (опционально)</label>
+                        <textarea id="videoPhotoPrompt" rows="2" placeholder="Камера приближается, объект плавно движется..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="videoPhotoModel">Модель</label>
+                            <select id="videoPhotoModel">
+                                <option value="ltx-2" selected>LTX-2</option>
+                                <option value="wan">Wan</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="videoPhotoDuration">Длительность</label>
+                            <select id="videoPhotoDuration">
+                                <option value="3">3 сек</option>
+                                <option value="5" selected>5 сек</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary btn-full" id="generateVideoPhotoBtn" onclick="generateVideoFromPhoto()">
+                        🎬 Анимировать фото
+                    </button>
+                </div>
+            </div>
+
+            <div class="panel result-panel" id="videoResult">
+                <div class="panel-header">
+                    <h2>Результат</h2>
+                </div>
+                <div class="result-placeholder" id="videoPlaceholder">
+                    <span class="placeholder-icon">🎬</span>
+                    <p>Нажми "Сгенерировать" чтобы создать видео</p>
+                </div>
+                <div class="result-content hidden" id="videoResultContent">
+                    <video id="generatedVideo" controls loop></video>
+                    <div class="result-info" id="videoInfo"></div>
+                    <div class="result-actions">
+                        <button class="btn btn-small" onclick="downloadVideo()">⬇ Скачать</button>
+                        <button class="btn btn-small" onclick="generateVideo()">🔄 Ещё раз</button>
+                    </div>
+                </div>
+                <div class="loader hidden" id="videoLoader">
+                    <div class="spinner"></div>
+                    <p id="videoLoaderText">Генерация видео... Это займёт 30-120 секунд</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- TAB: Shop / Buy Coins -->
+        <section id="tab-shop" class="tab-content">
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="panel-icon">💰</span> Магазин VD Coins</h2>
+                </div>
+                <div class="shop-card">
+                    <div class="shop-rate">
+                        <div class="shop-rate-label">Курс</div>
+                        <div class="shop-rate-value">1 ₽ = 2 💎 VD Coins</div>
+                    </div>
+                    <div class="shop-balance">
+                        <span>Твой баланс:</span>
+                        <span class="shop-balance-value">💎 <span id="shopUserCoins">0</span></span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="shopAmount">Сколько купить (₽)</label>
+                        <input type="number" id="shopAmount" min="10" max="5000" value="50" placeholder="10-5000" oninput="updateCoinEstimate()">
+                        <div class="shop-estimate" id="shopEstimate">Получишь: <b>100 💎 VD Coins</b></div>
+                    </div>
+
+                    <div class="quick-amounts">
+                        <button class="quick-amount-btn" onclick="setShopAmount(10)">10 ₽</button>
+                        <button class="quick-amount-btn" onclick="setShopAmount(50)">50 ₽</button>
+                        <button class="quick-amount-btn" onclick="setShopAmount(100)">100 ₽</button>
+                        <button class="quick-amount-btn" onclick="setShopAmount(200)">200 ₽</button>
+                        <button class="quick-amount-btn" onclick="setShopAmount(500)">500 ₽</button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Способ оплаты</label>
+                        <div class="payment-methods">
+                            <button class="payment-method-btn active" data-method="sbp" onclick="selectPayment('sbp')">
+                                <span class="pm-icon">📱</span>
+                                <span>СБП</span>
+                                <span class="pm-hint">Мгновенно</span>
+                            </button>
+                            <button class="payment-method-btn" data-method="card" onclick="selectPayment('card')">
+                                <span class="pm-icon">💳</span>
+                                <span>Карта</span>
+                                <span class="pm-hint">Перевод</span>
+                            </button>
+                            <button class="payment-method-btn" data-method="qiwi" onclick="selectPayment('qiwi')">
+                                <span class="pm-icon">🥝</span>
+                                <span>QIWI</span>
+                                <span class="pm-hint">Кошелёк</span>
+                            </button>
+                            <button class="payment-method-btn" data-method="crypto" onclick="selectPayment('crypto')">
+                                <span class="pm-icon">₿</span>
+                                <span>Крипто</span>
+                                <span class="pm-hint">USDT/TRC20</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Payment Details (changes by method) -->
+                    <div id="paymentDetails">
+                        <div class="payment-info" id="paymentSbp">
+                            <div class="payment-detail-card">
+                                <h4>📱 Оплата через СБП</h4>
+                                <p>Переведи <b id="sbpAmount">50 ₽</b> по номеру:</p>
+                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
+                                <p class="payment-comment">Комментарий к переводу: <b id="sbpComment">VD-USER</b></p>
+                                <div class="payment-steps">
+                                    <p>1. Открой приложение банка</p>
+                                    <p>2. Выбери "Перевод по СБП"</p>
+                                    <p>3. Введи номер и сумму</p>
+                                    <p>4. В комментарии укажи: <b id="sbpComment2">VD-USER</b></p>
+                                    <p>5. Нажми "Я оплатил"</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="payment-info hidden" id="paymentCard">
+                            <div class="payment-detail-card">
+                                <h4>💳 Оплата картой</h4>
+                                <p>Переведи <b id="cardAmount">50 ₽</b> на карту:</p>
+                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">2202 2023 **** 4567</div>
+                                <p class="payment-comment">Получатель: <b>Вадим В.</b></p>
+                                <p class="payment-note">Перевод обрабатывается до 5 минут</p>
+                            </div>
+                        </div>
+                        <div class="payment-info hidden" id="paymentQiwi">
+                            <div class="payment-detail-card">
+                                <h4>🥝 QIWI Кошелёк</h4>
+                                <p>Переведи <b id="qiwiAmount">50 ₽</b> на:</p>
+                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
+                                <p class="payment-comment">Комментарий: <b id="qiwiComment">VD-USER</b></p>
+                            </div>
+                        </div>
+                        <div class="payment-info hidden" id="paymentCrypto">
+                            <div class="payment-detail-card">
+                                <h4>₿ Криптовалюта (USDT TRC20)</h4>
+                                <p>Переведи <b id="cryptoAmount">50 ₽</b> (~$0.55 USDT)</p>
+                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">TN3W... (напиши в Discord)</div>
+                                <p class="payment-note">Напиши в Discord: <b>1z3c5B2</b> для получения адреса кошелька</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="shopUsername">Твой username в VD AI</label>
+                        <input type="text" id="shopUsername" placeholder="Куда начислить монеты" readonly>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="shopEmail">Email (для чека)</label>
+                        <input type="email" id="shopEmail" placeholder="your@email.com">
+                    </div>
+
+                    <button class="btn btn-primary btn-full" onclick="createPayment()">
+                        💰 Оплатить <span id="payBtnAmount">50 ₽</span>
+                    </button>
+
+                    <div class="shop-note">
+                        <p>⚡ Монеты начисляются в течение 5 минут после подтверждения оплаты</p>
+                        <p>❓ Вопросы? Discord: <b>1z3c5B2</b></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="panel-icon">📋</span> История покупок</h2>
+                </div>
+                <div id="shopHistory" class="shop-history">
+                    <p class="gallery-empty">Войдите, чтобы видеть историю</p>
+                </div>
+            </div>
+        </section>
+
         <!-- TAB: PRO -->
         <section id="tab-pro" class="tab-content">
             <div class="panel">
@@ -366,6 +618,9 @@
                     <button class="btn btn-primary" onclick="adminCreatePromo()">Создать</button>
                 </div>
                 <div id="adminPromosList" class="admin-list"></div>
+
+                <h3 style="margin:20px 0 12px">💳 Платежи (ожидают)</h3>
+                <div id="adminPaymentsList" class="admin-list"></div>
             </div>
         </section>
     </main>
