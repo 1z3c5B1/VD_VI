@@ -77,6 +77,7 @@ class VideoRequest(BaseModel):
     duration: int = Field(default=6, ge=2, le=120)
     fps: int = Field(default=10, ge=8, le=15)
     model: str = "ltx-2"
+    image_url: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -272,6 +273,10 @@ async def _edit_image(image_bytes: bytes, edit_type: str, prompt: str, width: in
 async def generate_video(req: VideoRequest, authorization: Optional[str] = Header(None)):
     user = _require_auth(authorization)
     try:
+        coin_result = deduct_coins(user["user_id"], 3)
+        if not coin_result["success"]:
+            raise HTTPException(status_code=402, detail=coin_result["error"])
+
         result = await asyncio.to_thread(
             video_generator.generate_video,
             prompt=req.prompt,
@@ -280,7 +285,15 @@ async def generate_video(req: VideoRequest, authorization: Optional[str] = Heade
             fps=req.fps,
             model=req.model,
         )
-        return result
+        if result:
+            result["coins"] = coin_result.get("coins", 0)
+            result["unlimited"] = coin_result.get("unlimited", False)
+            return result
+
+        deduct_coins(user["user_id"], -3)
+        raise HTTPException(status_code=502, detail="Не удалось сгенерировать видео")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

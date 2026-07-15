@@ -72,10 +72,6 @@
                 <span class="tab-icon">🎬</span>
                 <span>Видео</span>
             </button>
-            <button class="tab-btn" data-tab="shop">
-                <span class="tab-icon">💰</span>
-                <span>Магазин</span>
-            </button>
             <button class="tab-btn" data-tab="pro">
                 <span class="tab-icon">⭐</span>
                 <span>PRO</span>
@@ -425,165 +421,174 @@
         </section>
 
         <!-- TAB: Shop / Buy Coins -->
-        <section id="tab-shop" class="tab-content">
-            <div class="panel">
-                <div class="panel-header">
-                    <h2><span class="panel-icon">💰</span> Магазин VD Coins</h2>
-                </div>
-                <div class="shop-card">
-                    <div class="shop-rate">
-                        <div class="shop-rate-label">Курс</div>
-                        <div class="shop-rate-value">1 ₽ = 2 💎 VD Coins</div>
-                    </div>
-                    <div class="shop-balance">
-                        <span>Твой баланс:</span>
-                        <span class="shop-balance-value">💎 <span id="shopUserCoins">0</span></span>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="shopAmount">Сколько купить (₽)</label>
-                        <input type="number" id="shopAmount" min="10" max="5000" value="50" placeholder="10-5000" oninput="updateCoinEstimate()">
-                        <div class="shop-estimate" id="shopEstimate">Получишь: <b>100 💎 VD Coins</b></div>
-                    </div>
-
-                    <div class="quick-amounts">
-                        <button class="quick-amount-btn" onclick="setShopAmount(10)">10 ₽</button>
-                        <button class="quick-amount-btn" onclick="setShopAmount(50)">50 ₽</button>
-                        <button class="quick-amount-btn" onclick="setShopAmount(100)">100 ₽</button>
-                        <button class="quick-amount-btn" onclick="setShopAmount(200)">200 ₽</button>
-                        <button class="quick-amount-btn" onclick="setShopAmount(500)">500 ₽</button>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Способ оплаты</label>
-                        <div class="payment-methods">
-                            <button class="payment-method-btn active" data-method="sbp" onclick="selectPayment('sbp')">
-                                <span class="pm-icon">📱</span>
-                                <span>СБП</span>
-                                <span class="pm-hint">Мгновенно</span>
-                            </button>
-                            <button class="payment-method-btn" data-method="card" onclick="selectPayment('card')">
-                                <span class="pm-icon">💳</span>
-                                <span>Карта</span>
-                                <span class="pm-hint">Перевод</span>
-                            </button>
-                            <button class="payment-method-btn" data-method="qiwi" onclick="selectPayment('qiwi')">
-                                <span class="pm-icon">🥝</span>
-                                <span>QIWI</span>
-                                <span class="pm-hint">Кошелёк</span>
-                            </button>
-                            <button class="payment-method-btn" data-method="crypto" onclick="selectPayment('crypto')">
-                                <span class="pm-icon">₿</span>
-                                <span>Крипто</span>
-                                <span class="pm-hint">USDT/TRC20</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Payment Details (changes by method) -->
-                    <div id="paymentDetails">
-                        <div class="payment-info" id="paymentSbp">
-                            <div class="payment-detail-card">
-                                <h4>📱 Оплата через СБП</h4>
-                                <p>Переведи <b id="sbpAmount">50 ₽</b> по номеру:</p>
-                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
-                                <p class="payment-comment">Комментарий к переводу: <b id="sbpComment">VD-USER</b></p>
-                                <div class="payment-steps">
-                                    <p>1. Открой приложение банка</p>
-                                    <p>2. Выбери "Перевод по СБП"</p>
-                                    <p>3. Введи номер и сумму</p>
-                                    <p>4. В комментарии укажи: <b id="sbpComment2">VD-USER</b></p>
-                                    <p>5. Нажми "Я оплатил"</p>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="payment-info hidden" id="paymentCard">
-                            <div class="payment-detail-card">
-                                <h4>💳 Оплата картой</h4>
-                                <p>Переведи <b id="cardAmount">50 ₽</b> на карту:</p>
-                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">2202 2023 **** 4567</div>
-                                <p class="payment-comment">Получатель: <b>Вадим В.</b></p>
-                                <p class="payment-note">Перевод обрабатывается до 5 минут</p>
-                            </div>
-                        </div>
-                        <div class="payment-info hidden" id="paymentQiwi">
-                            <div class="payment-detail-card">
-                                <h4>🥝 QIWI Кошелёк</h4>
-                                <p>Переведи <b id="qiwiAmount">50 ₽</b> на:</p>
-                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
-                                <p class="payment-comment">Комментарий: <b id="qiwiComment">VD-USER</b></p>
-                            </div>
-                        </div>
-                        <div class="payment-info hidden" id="paymentCrypto">
-                            <div class="payment-detail-card">
-                                <h4>₿ Криптовалюта (USDT TRC20)</h4>
-                                <p>Переведи <b id="cryptoAmount">50 ₽</b> (~$0.55 USDT)</p>
-                                <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">TN3W... (напиши в Discord)</div>
-                                <p class="payment-note">Напиши в Discord: <b>1z3c5B2</b> для получения адреса кошелька</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="shopUsername">Твой username в VD AI</label>
-                        <input type="text" id="shopUsername" placeholder="Куда начислить монеты" readonly>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="shopEmail">Email (для чека)</label>
-                        <input type="email" id="shopEmail" placeholder="your@email.com">
-                    </div>
-
-                    <button class="btn btn-primary btn-full" onclick="createPayment()">
-                        💰 Оплатить <span id="payBtnAmount">50 ₽</span>
-                    </button>
-
-                    <div class="shop-note">
-                        <p>⚡ Монеты начисляются в течение 5 минут после подтверждения оплаты</p>
-                        <p>❓ Вопросы? Discord: <b>1z3c5B2</b></p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="panel">
-                <div class="panel-header">
-                    <h2><span class="panel-icon">📋</span> История покупок</h2>
-                </div>
-                <div id="shopHistory" class="shop-history">
-                    <p class="gallery-empty">Войдите, чтобы видеть историю</p>
-                </div>
-            </div>
-        </section>
+        <section id="tab-shop" class="tab-content hidden"></section>
 
         <!-- TAB: PRO -->
         <section id="tab-pro" class="tab-content">
             <div class="panel">
                 <div class="panel-header">
-                    <h2><span class="panel-icon">⭐</span> VD AI PRO</h2>
+                    <div class="panel-mode-tabs">
+                        <button class="mode-tab active" data-mode="pro-buy" onclick="switchProMode('pro-buy')">
+                            <span class="mode-icon">⭐</span> PRO
+                        </button>
+                        <button class="mode-tab" data-mode="pro-coins" onclick="switchProMode('pro-coins')">
+                            <span class="mode-icon">💎</span> Монеты
+                        </button>
+                        <button class="mode-tab" data-mode="pro-promo" onclick="switchProMode('pro-promo')">
+                            <span class="mode-icon">🎫</span> Промокод
+                        </button>
+                    </div>
                 </div>
-                <div class="pro-card">
-                    <h3>VD AI PRO</h3>
-                    <div class="pro-price">15 ₽ / навсегда</div>
-                    <ul class="pro-features">
-                        <li>✦ Безлимитная генерация картинок</li>
-                        <li>✦ Безлимитное редактирование</li>
-                        <li>✦ Безлимитный чат с GPT, Claude, Mistral, Gemini, Llama</li>
-                        <li>✦ Все будущие функции</li>
-                    </ul>
-                    <div class="pro-how">
-                        <h4>Как получить?</h4>
-                        <p>1. Напиши в Discord: <b>1z3c5B2</b></p>
-                        <p>2. Отправь 15 ₽ на номер <b>+79097884730</b> (QPLUS)</p>
-                        <p>3. Получи промокод и активируй ниже</p>
-                    </div>
-                    <div class="promo-activate">
-                        <label>Активировать промокод</label>
-                        <div class="form-row">
-                            <input type="text" id="promoCode" placeholder="Введите код" style="flex:1">
-                            <button class="btn btn-primary" onclick="activatePromo()">Активировать</button>
+
+                <!-- PRO SUBSCRIPTION -->
+                <div id="proBuyMode">
+                    <div class="pro-card">
+                        <div class="pro-badge-big">⭐ VD AI PRO</div>
+                        <div class="pro-price">15 ₽ / навсегда</div>
+                        <ul class="pro-features">
+                            <li>✦ Безлимитная генерация картинок</li>
+                            <li>✦ Безлимитное редактирование</li>
+                            <li>✦ Безлимитный чат с GPT, Claude, Mistral, Gemini, Llama</li>
+                            <li>✦ Все будущие функции</li>
+                        </ul>
+
+                        <div class="payment-detail-card" style="text-align:left">
+                            <h4>Как купить PRO?</h4>
+                            <p>1. Переведи <b>15 ₽</b> на номер:</p>
+                            <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
+                            <p class="payment-comment">Получатель: <b>Вадим В.</b> (QPLUS)</p>
+                            <p>2. В комментарии напиши: <b>PRO-ТВОЙНИК</b></p>
+                            <p>3. Промокод придёт на <b>email</b> или в <b>Discord</b></p>
+                            <p>4. Активируй промокод ниже</p>
                         </div>
-                        <p id="promoResult" class="promo-result"></p>
                     </div>
+                </div>
+
+                <!-- BUY COINS -->
+                <div id="proCoinsMode" class="hidden">
+                    <div class="shop-card">
+                        <div class="shop-rate">
+                            <div class="shop-rate-label">Курс</div>
+                            <div class="shop-rate-value">1 ₽ = 2 💎 VD Coins</div>
+                        </div>
+                        <div class="shop-balance">
+                            <span>Твой баланс:</span>
+                            <span class="shop-balance-value">💎 <span id="shopUserCoins">0</span></span>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="shopAmount">Сколько купить (₽)</label>
+                            <input type="number" id="shopAmount" min="10" max="5000" value="50" oninput="updateCoinEstimate()">
+                            <div class="shop-estimate" id="shopEstimate">Получишь: <b>100 💎 VD Coins</b></div>
+                        </div>
+
+                        <div class="quick-amounts">
+                            <button class="quick-amount-btn" onclick="setShopAmount(10)">10 ₽</button>
+                            <button class="quick-amount-btn" onclick="setShopAmount(50)">50 ₽</button>
+                            <button class="quick-amount-btn" onclick="setShopAmount(100)">100 ₽</button>
+                            <button class="quick-amount-btn" onclick="setShopAmount(200)">200 ₽</button>
+                            <button class="quick-amount-btn" onclick="setShopAmount(500)">500 ₽</button>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Способ оплаты</label>
+                            <div class="payment-methods">
+                                <button class="payment-method-btn active" data-method="sbp" onclick="selectPayment('sbp')">
+                                    <span class="pm-icon">📱</span>
+                                    <span>СБП</span>
+                                    <span class="pm-hint">Мгновенно</span>
+                                </button>
+                                <button class="payment-method-btn" data-method="card" onclick="selectPayment('card')">
+                                    <span class="pm-icon">💳</span>
+                                    <span>Карта</span>
+                                    <span class="pm-hint">Перевод</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div id="paymentDetails">
+                            <div class="payment-info" id="paymentSbp">
+                                <div class="payment-detail-card">
+                                    <div class="secure-badge">🔒 Безопасная оплата</div>
+                                    <h4>📱 Перевод по СБП</h4>
+                                    <p>Переведи <b id="sbpAmount">50 ₽</b> на номер:</p>
+                                    <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
+                                    <p class="payment-comment">Комментарий: <b id="sbpComment">VD-USER</b></p>
+                                    <div class="payment-steps">
+                                        <p>1. Открой приложение банка</p>
+                                        <p>2. Выбери «Перевод по СБП»</p>
+                                        <p>3. Введи номер и сумму</p>
+                                        <p>4. В комментарии укажи: <b id="sbpComment2">VD-USER</b></p>
+                                        <p>5. Нажми «Оплатить»</p>
+                                    </div>
+                                    <div class="security-footer">
+                                        <span>🔒 Данные защищены</span>
+                                        <span>⚡ Мгновенно</span>
+                                        <span>✅ Без комиссии</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="payment-info hidden" id="paymentCard">
+                                <div class="payment-detail-card">
+                                    <div class="secure-badge">🔒 Безопасная оплата</div>
+                                    <h4>💳 Перевод на карту</h4>
+                                    <p>Переведи <b id="cardAmount">50 ₽</b> на карту:</p>
+                                    <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">2202 2023 **** 4567</div>
+                                    <p class="payment-comment">Получатель: <b>Вадим В.</b></p>
+                                    <p class="payment-note">Перевод обрабатывается до 5 минут</p>
+                                    <div class="security-footer">
+                                        <span>🔒 Шифрование TLS</span>
+                                        <span>🛡 3D Secure</span>
+                                        <span>✅ Проверка банком</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="shopEmail">Email (куда отправить подтверждение)</label>
+                            <input type="email" id="shopEmail" placeholder="your@email.com">
+                        </div>
+
+                        <button class="btn btn-primary btn-full" onclick="createPayment()">
+                            💰 Оплатить <span id="payBtnAmount">50 ₽</span>
+                        </button>
+
+                        <div class="security-badges-row">
+                            <div class="sec-badge">🔒 SSL/TLS</div>
+                            <div class="sec-badge">🛡 Шифрование</div>
+                            <div class="sec-badge">✓ Безопасность</div>
+                        </div>
+
+                        <div class="shop-note">
+                            <p>⚡ Монеты начисляются в течение 5 минут после подтверждения</p>
+                            <p>❓ Вопросы? Discord: <b>1z3c5B2</b></p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROMO CODE -->
+                <div id="proPromoMode" class="hidden">
+                    <div class="pro-card">
+                        <div class="promo-activate">
+                            <h3>Активировать промокод</h3>
+                            <p style="color:var(--text-muted);margin-bottom:16px;font-size:13px">Введи промокод, полученный после оплаты</p>
+                            <div class="form-row" style="grid-template-columns:1fr auto">
+                                <input type="text" id="promoCode" placeholder="Например: VD-ABC123" style="font-size:16px;padding:14px;text-transform:uppercase">
+                                <button class="btn btn-primary" onclick="activatePromo()" style="padding:14px 28px">Активировать</button>
+                            </div>
+                            <p id="promoResult" class="promo-result"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel" id="proHistoryPanel">
+                <div class="panel-header">
+                    <h2><span class="panel-icon">📋</span> История</h2>
+                </div>
+                <div id="shopHistory" class="shop-history">
+                    <p class="gallery-empty">Войдите, чтобы видеть историю</p>
                 </div>
             </div>
         </section>

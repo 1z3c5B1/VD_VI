@@ -972,6 +972,14 @@ async function generateVideoFromPhoto() {
 // ---- Shop / Buy Coins ----
 let selectedPayment = 'sbp';
 
+function switchProMode(mode) {
+    document.querySelectorAll('#tab-pro .mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`#tab-pro .mode-tab[data-mode="${mode}"]`).classList.add('active');
+    document.getElementById('proBuyMode').classList.toggle('hidden', mode !== 'pro-buy');
+    document.getElementById('proCoinsMode').classList.toggle('hidden', mode !== 'pro-coins');
+    document.getElementById('proPromoMode').classList.toggle('hidden', mode !== 'pro-promo');
+}
+
 function updateCoinEstimate() {
     const amount = parseInt(document.getElementById('shopAmount').value) || 0;
     const coins = amount * 2;
