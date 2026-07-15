@@ -168,11 +168,43 @@
                         <button class="btn btn-small" onclick="clearEditFile()">✕ Убрать</button>
                     </div>
                     <div class="form-group">
-                        <label for="editPrompt">Что изменить?</label>
-                        <textarea id="editPrompt" rows="2" placeholder="сделай закат, добавь небо, убери людей...">сделай закат</textarea>
+                        <label>Базовые эффекты</label>
+                        <div class="edit-type-buttons">
+                            <button class="edit-type-btn" data-type="grayscale" onclick="editImageType('grayscale')">
+                                <span>⬛</span> Ч/Б
+                            </button>
+                            <button class="edit-type-btn" data-type="sepia" onclick="editImageType('sepia')">
+                                <span>🟤</span> Сепия
+                            </button>
+                            <button class="edit-type-btn" data-type="negate" onclick="editImageType('negate')">
+                                <span>🔄</span> Инверсия
+                            </button>
+                            <button class="edit-type-btn" data-type="brightness" onclick="editImageType('brightness')">
+                                <span>☀</span> Яркость
+                            </button>
+                            <button class="edit-type-btn" data-type="darken" onclick="editImageType('darken')">
+                                <span>🌙</span> Темнее
+                            </button>
+                            <button class="edit-type-btn" data-type="contrast" onclick="editImageType('contrast')">
+                                <span>◐</span> Контраст
+                            </button>
+                            <button class="edit-type-btn" data-type="blur" onclick="editImageType('blur')">
+                                <span>💧</span> Размытие
+                            </button>
+                            <button class="edit-type-btn" data-type="pixelate" onclick="editImageType('pixelate')">
+                                <span>▦</span> Пиксели
+                            </button>
+                            <button class="edit-type-btn" data-type="oil_paint" onclick="editImageType('oil_paint')">
+                                <span>🎨</span> Картина
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="editPrompt">Или опиши что изменить (ИИ)</label>
+                        <textarea id="editPrompt" rows="2" placeholder="сделай закат, добавь небо, замени фон...">сделай закат</textarea>
                     </div>
                     <button class="btn btn-primary btn-full" id="editImageBtn" onclick="editImage()">
-                        ✎ Редактировать
+                        ✎ Применить
                     </button>
                 </div>
             </div>

@@ -334,6 +334,15 @@ function regenerateImage() {
 }
 
 // ---- Image Edit ----
+let currentEditType = 'custom';
+
+function editImageType(type) {
+    currentEditType = type;
+    document.querySelectorAll('.edit-type-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.edit-type-btn[data-type="${type}"]`).classList.add('active');
+    editImage();
+}
+
 async function editImage() {
     const fileInput = document.getElementById('editFileInput');
     const previewImg = document.getElementById('editPreviewImg');
@@ -365,6 +374,7 @@ async function editImage() {
             body: JSON.stringify({
                 image_data: previewImg.src,
                 prompt: editPrompt,
+                edit_type: currentEditType,
                 width: parseInt(document.getElementById('width').value) || 1024,
                 height: parseInt(document.getElementById('height').value) || 1024,
             }),
