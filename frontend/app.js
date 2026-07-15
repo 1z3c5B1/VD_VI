@@ -340,16 +340,17 @@ function editImageType(type) {
     currentEditType = type;
     document.querySelectorAll('.edit-type-btn').forEach(b => b.classList.remove('active'));
     document.querySelector(`.edit-type-btn[data-type="${type}"]`).classList.add('active');
-    editImage();
+    if (document.getElementById('editFileInput').files.length) {
+        editImage();
+    }
 }
 
 async function editImage() {
     const fileInput = document.getElementById('editFileInput');
     const previewImg = document.getElementById('editPreviewImg');
-    const editPrompt = document.getElementById('editPrompt').value.trim();
 
     if (!fileInput.files.length) return alert('Загрузи фото сначала');
-    if (!editPrompt) return alert('Напиши, что изменить');
+    if (!currentEditType) return alert('Выбери эффект');
 
     const loader = document.getElementById('imageLoader');
     const placeholder = document.getElementById('imagePlaceholder');
@@ -361,8 +362,8 @@ async function editImage() {
     placeholder.classList.add('hidden');
     result.classList.add('hidden');
     btn.disabled = true;
-    btn.textContent = 'Редактирую...';
-    loaderText.textContent = 'Редактирование изображения...';
+    btn.textContent = 'Применяю...';
+    loaderText.textContent = 'Применение эффекта...';
 
     try {
         const res = await fetch(`${API_BASE}/api/generate/edit-image`, {
@@ -373,16 +374,13 @@ async function editImage() {
             },
             body: JSON.stringify({
                 image_data: previewImg.src,
-                prompt: editPrompt,
                 edit_type: currentEditType,
-                width: parseInt(document.getElementById('width').value) || 1024,
-                height: parseInt(document.getElementById('height').value) || 1024,
             }),
         });
 
         if (!res.ok) {
             const err = await res.json();
-            throw new Error(err.detail || 'Ошибка редактирования');
+            throw new Error(err.detail || 'Ошибка применения эффекта');
         }
 
         const data = await res.json();
@@ -392,7 +390,7 @@ async function editImage() {
         img.src = `${API_BASE}${data.url}?t=${Date.now()}`;
 
         document.getElementById('imageInfo').textContent =
-            `Редактирование: "${editPrompt}" | 💎 ${data.unlimited ? '∞' : data.coins}`;
+            `Эффект: ${currentEditType} | 💎 ${data.unlimited ? '∞' : data.coins}`;
 
         if (data.coins !== undefined) {
             userCoins = data.coins;
@@ -407,7 +405,7 @@ async function editImage() {
         alert('Ошибка: ' + err.message);
     } finally {
         btn.disabled = false;
-        btn.textContent = '✎ Редактировать';
+        btn.textContent = '✎ Применить';
         loaderText.textContent = 'Генерация...';
     }
 }

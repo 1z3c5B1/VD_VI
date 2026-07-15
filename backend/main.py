@@ -185,7 +185,7 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
 
 
 async def _edit_image(image_bytes: bytes, edit_type: str, prompt: str, width: int, height: int):
-    """Edit image via Cloudinary transforms or Pollinations AI"""
+    """Edit image via Cloudinary transforms"""
     try:
         import io
         from PIL import Image
@@ -243,7 +243,7 @@ async def _edit_image(image_bytes: bytes, edit_type: str, prompt: str, width: in
 
         if edit_type in CLOUDINARY_EFFECTS:
             effect = CLOUDINARY_EFFECTS[edit_type]
-            result_url = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD}/image/upload/{effect},w_{width},h_{height}/{upload_result['public_id']}"
+            result_url = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD}/image/upload/{effect}/{upload_result['public_id']}"
             print(f"[Edit] Cloudinary transform: {edit_type}")
 
             resp = await asyncio.to_thread(requests.get, result_url, timeout=30)
