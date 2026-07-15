@@ -274,7 +274,7 @@ def admin_get_promos(token: str) -> dict:
     conn = _get_db()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT * FROM promo_codes ORDER BY id DESC")
+        cur.execute("SELECT * FROM promo_codes ORDER BY created_at DESC")
         rows = cur.fetchall()
         return {"success": True, "promos": [dict(r) for r in rows]}
     finally:

@@ -235,10 +235,7 @@ async def _edit_with_cloudinary(image_bytes: bytes, edit_type: str, prompt: str,
 
         if transformations:
             trans_str = "/".join(transformations)
-            result_url = cloudinary.utils.cloudinary_url(
-                public_id,
-                transformation=trans_str,
-            )[0]
+            result_url = f"https://res.cloudinary.com/{CLOUDINARY_CLOUD}/image/upload/{trans_str}/{public_id}"
         else:
             result_url = upload_result["secure_url"]
 
