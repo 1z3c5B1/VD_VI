@@ -168,8 +168,25 @@
                         <button class="btn btn-small" onclick="clearEditFile()">✕ Убрать</button>
                     </div>
                     <div class="form-group">
+                        <label>Тип редактирования</label>
+                        <div class="edit-type-buttons">
+                            <button class="edit-type-btn active" data-type="remove_bg" onclick="switchEditType('remove_bg')">
+                                <span>✂</span> Удалить фон
+                            </button>
+                            <button class="edit-type-btn" data-type="replace_object" onclick="switchEditType('replace_object')">
+                                <span>🔄</span> Замена объекта
+                            </button>
+                            <button class="edit-type-btn" data-type="crop" onclick="switchEditType('crop')">
+                                <span>⬒</span> Обрезать
+                            </button>
+                            <button class="edit-type-btn" data-type="resize" onclick="switchEditType('resize')">
+                                <span>↔</span> Изменить размер
+                            </button>
+                        </div>
+                    </div>
+                    <div class="form-group" id="editPromptGroup">
                         <label for="editPrompt">Что изменить?</label>
-                        <textarea id="editPrompt" rows="3" placeholder="Опиши, что нужно изменить...">сделай закат, добавь неоновые огни</textarea>
+                        <textarea id="editPrompt" rows="2" placeholder="для замены: объект|новый объект (напр. bike|airplane)">для замены: объект|новый объект</textarea>
                     </div>
                     <button class="btn btn-primary btn-full" id="editImageBtn" onclick="editImage()">
                         ✎ Редактировать

@@ -892,3 +892,40 @@ footer {
     background: var(--error) !important;
     color: #fff !important;
 }
+
+/* EDIT TYPE BUTTONS */
+.edit-type-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.edit-type-btn {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.edit-type-btn:hover {
+    border-color: var(--accent);
+    color: var(--text);
+}
+
+.edit-type-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+    box-shadow: 0 4px 15px var(--glow);
+}

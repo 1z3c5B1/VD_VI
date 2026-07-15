@@ -9,5 +9,9 @@ POLLINATIONS_KEY = os.environ.get("POLLINATIONS_KEY", "sk_qGTE6yG58UawexsyAcoQwp
 POLLINATIONS_PK = os.environ.get("POLLINATIONS_PK", "pk_j1VCcxAp2GYeMzyx")
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
 
+CLOUDINARY_CLOUD = os.environ.get("CLOUDINARY_CLOUD", "cm4h85pv")
+CLOUDINARY_KEY = os.environ.get("CLOUDINARY_KEY", "344499215755811")
+CLOUDINARY_SECRET = os.environ.get("CLOUDINARY_SECRET", "YlDFDkUqeYhf0cl5HZvKpTgB04w")
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)

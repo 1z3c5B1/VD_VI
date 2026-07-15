@@ -14,7 +14,7 @@ from typing import Optional
 
 from backend.models.image_generator import ImageGenerator
 from backend.models.video_generator import VideoGenerator
-from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK, HF_TOKEN
+from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK, HF_TOKEN, CLOUDINARY_CLOUD, CLOUDINARY_KEY, CLOUDINARY_SECRET
 from backend.auth import (
     register, login, verify_token, deduct_coins, use_promo_code, is_admin, admin_login,
     admin_get_users, admin_get_promos, admin_create_promo, admin_delete_promo,
@@ -23,6 +23,16 @@ from backend.auth import (
 
 image_generator = ImageGenerator()
 video_generator = VideoGenerator()
+
+import cloudinary
+import cloudinary.uploader
+import cloudinary.utils
+
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD,
+    api_key=CLOUDINARY_KEY,
+    api_secret=CLOUDINARY_SECRET,
+)
 
 app = FastAPI(title="VD AI")
 
@@ -54,7 +64,8 @@ class ImageRequest(BaseModel):
 
 class ImageEditRequest(BaseModel):
     image_data: str
-    prompt: str
+    prompt: str = ""
+    edit_type: str = "remove_bg"
     width: int = 1024
     height: int = 1024
 
@@ -151,47 +162,21 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
     user = _require_auth(authorization)
 
     try:
-        coin_result = deduct_coins(user["user_id"], 2)
+        coin_result = deduct_coins(user["user_id"], 1)
         if not coin_result["success"]:
             raise HTTPException(status_code=402, detail=coin_result["error"])
+
         image_bytes = base64.b64decode(req.image_data.split(",")[-1] if "," in req.image_data else req.image_data)
 
-        en_prompt = req.prompt
-        ru_map = {
-            "черн": "black", "чёрн": "black", "чорн": "black",
-            "бел": "white", "красн": "red", "син": "blue",
-            "зелен": "green", "зелён": "green", "желт": "yellow",
-            "сделай": "make", "добавь": "add", "убери": "remove",
-            "измени": "change", "замени": "replace", "увеличь": "increase",
-            "уменьши": "decrease", "ярк": "bright", "тёмн": "dark",
-            "свет": "light", "цвет": "color",
-            "фон": "background", "небо": "sky", "вод": "water",
-            "огон": "fire", "закат": "sunset", "рассвет": "sunrise",
-            "картинк": "image", "фото": "photo", "пейзаж": "landscape",
-        }
-        lower = req.prompt.lower()
-        for ru, en in ru_map.items():
-            if ru in lower:
-                en_prompt = f"edit the image: {req.prompt}. Apply the effect to the ENTIRE image."
-                break
+        result = await _edit_with_cloudinary(image_bytes, req.edit_type, req.prompt, req.width, req.height)
 
-        result = await _edit_with_hf(image_bytes, en_prompt, req.width, req.height)
         if result:
             result["coins"] = coin_result.get("coins", 0)
             result["unlimited"] = coin_result.get("unlimited", False)
             return result
 
-        result = await _edit_with_pollinations(image_bytes, en_prompt, req.width, req.height)
-        if result:
-            result["coins"] = coin_result.get("coins", 0)
-            result["unlimited"] = coin_result.get("unlimited", False)
-            return result
-
-        deduct_coins(user["user_id"], -2)
-        raise HTTPException(
-            status_code=502,
-            detail="Не удалось отредактировать. Попробуйте другой промпт."
-        )
+        deduct_coins(user["user_id"], -1)
+        raise HTTPException(status_code=502, detail="Не удалось отредактировать. Попробуйте другой промпт.")
 
     except HTTPException:
         raise
@@ -199,8 +184,8 @@ async def edit_image(req: ImageEditRequest, authorization: Optional[str] = Heade
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int):
-    """Edit image via Pollinations free GET API (klein model)"""
+async def _edit_with_cloudinary(image_bytes: bytes, edit_type: str, prompt: str, width: int, height: int):
+    """Edit image via Cloudinary API"""
     try:
         import io
         from PIL import Image
@@ -209,122 +194,72 @@ async def _edit_with_hf(image_bytes: bytes, prompt: str, width: int, height: int
         img = img.convert("RGB")
         img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
 
-        tmp_filename = f"tmp_{uuid.uuid4().hex[:8]}.jpg"
-        tmp_path = STATIC_DIR / tmp_filename
-        buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=85)
-        with open(tmp_path, "wb") as f:
-            f.write(buf.getvalue())
-
-        from backend.config import OUTPUT_DIR
-        host = os.environ.get("RENDER_EXTERNAL_URL", "https://vd-ai.onrender.com")
-        image_url = f"{host}/static/generated/{tmp_filename}"
-        print(f"[Edit] Local image URL: {image_url}")
-
-        encoded_prompt = requests.utils.quote(prompt)
-        edit_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=klein&image={image_url}&width={width}&height={height}&seed={int(uuid.uuid4().int % 999999)}"
-
-        print(f"[Edit] Requesting: {edit_url[:150]}...")
-        resp = await asyncio.to_thread(
-            requests.get,
-            edit_url,
-            timeout=120,
-        )
-
-        print(f"[Edit] Status: {resp.status_code}, CT: {resp.headers.get('content-type', '?')}, Size: {len(resp.content)}")
-
-        try:
-            os.remove(str(tmp_path))
-        except Exception:
-            pass
-
-        if resp.status_code == 200 and "image" in resp.headers.get("content-type", ""):
-            result_img = Image.open(io.BytesIO(resp.content))
-            if result_img.size[0] > 10 and result_img.size[1] > 10:
-                out_buf = io.BytesIO()
-                result_img.save(out_buf, format="PNG")
-                img_bytes = out_buf.getvalue()
-
-                if len(img_bytes) > 5000:
-                    filename = f"edit_{uuid.uuid4().hex}.png"
-                    filepath = STATIC_DIR / filename
-                    with open(filepath, "wb") as f:
-                        f.write(img_bytes)
-                    print(f"[Edit] Saved: {filename} ({len(img_bytes)} bytes)")
-                    return {"url": f"/static/generated/{filename}", "filename": filename}
-
-        print(f"[Edit] Failed: {resp.status_code}")
-        return None
-
-    except Exception as e:
-        print(f"[Edit] Exception: {e}")
-        return None
-
-
-async def _edit_with_pollinations(image_bytes: bytes, prompt: str, width: int, height: int):
-    """Edit image via media upload + GET /image/{prompt}?model=klein"""
-    try:
-        import io
-        from PIL import Image
-
-        img = Image.open(io.BytesIO(image_bytes))
-        img = img.convert("RGB")
-        img = img.resize((min(img.width, 1024), min(img.height, 1024)), Image.LANCZOS)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=90)
         clean_bytes = buf.getvalue()
 
-        print(f"[Edit] Uploading to media...")
-        upload_resp = await asyncio.to_thread(
-            requests.post,
-            "https://media.pollinations.ai/upload",
-            headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
-            files={"file": ("input.jpg", clean_bytes, "image/jpeg")},
-            timeout=60
+        print(f"[Cloudinary] Uploading image ({len(clean_bytes)} bytes)...")
+        upload_result = cloudinary.uploader.upload(
+            clean_bytes,
+            folder="vdai_edits",
+            public_id=f"edit_{uuid.uuid4().hex[:12]}",
         )
+        public_id = upload_result["public_id"]
+        print(f"[Cloudinary] Uploaded: {public_id}")
 
-        if upload_resp.status_code != 200:
-            print(f"[Edit] Upload failed: {upload_resp.status_code} {upload_resp.text[:200]}")
-            return None
+        transformations = []
 
-        media_url = upload_resp.json().get("url", "")
-        print(f"[Edit] Uploaded: {media_url}")
+        if edit_type == "remove_bg":
+            transformations.append("e_bgremoval")
 
-        if not media_url:
-            return None
-
-        encoded_prompt = requests.utils.quote(prompt)
-        models_to_try = ["klein", "kontext"]
-
-        for model in models_to_try:
-            img_url = f"https://gen.pollinations.ai/image/{encoded_prompt}?model={model}&width={width}&height={height}&image={requests.utils.quote(media_url)}"
-
-            print(f"[Edit] Trying GET /image with model={model}...")
-            img_resp = await asyncio.to_thread(
-                requests.get,
-                img_url,
-                headers={"Authorization": f"Bearer {POLLINATIONS_PK}"},
-                timeout=120
-            )
-
-            ct = img_resp.headers.get("content-type", "none")
-            print(f"[Edit] Status: {img_resp.status_code}, CT: {ct}, Size: {len(img_resp.content)}")
-
-            if img_resp.status_code == 200 and "image" in ct and len(img_resp.content) > 5000:
-                filename = f"edit_{uuid.uuid4().hex}.png"
-                filepath = STATIC_DIR / filename
-                with open(filepath, "wb") as f:
-                    f.write(img_resp.content)
-                print(f"[Edit] Saved ({model}): {filename} ({len(img_resp.content)} bytes)")
-                return {"url": f"/static/generated/{filename}", "filename": filename}
+        elif edit_type == "replace_object" and prompt:
+            parts = prompt.split("|")
+            if len(parts) == 2:
+                from_obj = parts[0].strip()
+                to_obj = parts[1].strip()
+                transformations.append(f"e_gen_replace:from_{from_obj};to_{to_obj}")
             else:
-                print(f"[Edit] Failed ({model}): {img_resp.text[:200]}")
+                transformations.append(f"e_gen_replace:from_{prompt};to_{prompt}")
 
-        print("[Edit] All models failed")
+        elif edit_type == "crop":
+            transformations.append(f"c_fill,w_{width},h_{height}")
+
+        elif edit_type == "resize":
+            transformations.append(f"c_limit,w_{width},h_{height}")
+
+        elif edit_type == "custom" and prompt:
+            transformations.append(f"e_gen_replace:from_object;to_{prompt}")
+
+        else:
+            transformations.append("e_bgremoval")
+
+        if transformations:
+            trans_str = "/".join(transformations)
+            result_url = cloudinary.utils.cloudinary_url(
+                public_id,
+                transformation=trans_str,
+            )[0]
+        else:
+            result_url = upload_result["secure_url"]
+
+        print(f"[Cloudinary] Result URL: {result_url[:120]}...")
+
+        resp = await asyncio.to_thread(requests.get, result_url, timeout=30)
+        print(f"[Cloudinary] Download: {resp.status_code}, {len(resp.content)} bytes")
+
+        if resp.status_code == 200 and len(resp.content) > 1000:
+            filename = f"edit_{uuid.uuid4().hex}.png"
+            filepath = STATIC_DIR / filename
+            with open(filepath, "wb") as f:
+                f.write(resp.content)
+            print(f"[Cloudinary] Saved: {filename}")
+            return {"url": f"/static/generated/{filename}", "filename": filename}
+
+        print(f"[Cloudinary] Download failed")
         return None
 
     except Exception as e:
-        print(f"[Edit] Exception: {e}")
+        print(f"[Cloudinary] Exception: {e}")
         import traceback
         traceback.print_exc()
         return None

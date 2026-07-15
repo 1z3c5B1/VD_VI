@@ -1,6 +1,7 @@
 let userCoins = 0;
 let userIsPro = false;
 let userIsAdmin = false;
+let currentEditType = 'remove_bg';
 
 const API_BASE = "https://vd-ai.onrender.com";
 let authToken = localStorage.getItem('vdai_token');
@@ -334,6 +335,26 @@ function regenerateImage() {
 }
 
 // ---- Image Edit ----
+function switchEditType(type) {
+    currentEditType = type;
+    document.querySelectorAll('.edit-type-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.edit-type-btn[data-type="${type}"]`).classList.add('active');
+
+    const promptGroup = document.getElementById('editPromptGroup');
+    const promptInput = document.getElementById('editPrompt');
+
+    if (type === 'remove_bg') {
+        promptGroup.classList.add('hidden');
+    } else if (type === 'replace_object') {
+        promptGroup.classList.remove('hidden');
+        promptInput.placeholder = 'объект|новый объект (напр. bike|airplane)';
+    } else if (type === 'crop') {
+        promptGroup.classList.add('hidden');
+    } else if (type === 'resize') {
+        promptGroup.classList.add('hidden');
+    }
+}
+
 async function editImage() {
     const fileInput = document.getElementById('editFileInput');
     const previewImg = document.getElementById('editPreviewImg');
@@ -365,6 +386,7 @@ async function editImage() {
             body: JSON.stringify({
                 image_data: previewImg.src,
                 prompt: editPrompt,
+                edit_type: currentEditType,
                 width: parseInt(document.getElementById('width').value) || 1024,
                 height: parseInt(document.getElementById('height').value) || 1024,
             }),
