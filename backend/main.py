@@ -213,13 +213,37 @@ async def _edit_with_cloudinary(image_bytes: bytes, edit_type: str, prompt: str,
             transformations.append("e_bgremoval")
 
         elif edit_type == "replace_object" and prompt:
+            RU_TO_EN = {
+                "собака": "dog", "кот": "cat", "кошка": "cat", "человек": "person",
+                "машина": "car", "автомобиль": "car", "дом": "house", "дерево": "tree",
+                "цветок": "flower", "солнце": "sun", "луна": "moon", "звезда": "star",
+                "река": "river", "море": "sea", "гора": "mountain", "небо": "sky",
+                "туча": "cloud", "снег": "snow", "дождь": "rain", "ветер": "wind",
+                "自行车": "bicycle", "велосипед": "bicycle", "велосипед": "bike",
+                "самолет": "airplane", "самолёт": "airplane", "поезд": "train",
+                "стол": "table", "стул": "chair", "книга": "book", "телефон": "phone",
+                "компьютер": "computer", "ноутбук": "laptop", "ручка": "pen",
+                "карандаш": "pencil", "мяч": "ball", "шар": "ball",
+                "рыба": "fish", "птица": "bird", "птичка": "bird",
+                "красный": "red", "синий": "blue", "зеленый": "green",
+                "желтый": "yellow", "белый": "white", "черный": "black",
+                "розовый": "pink", "фиолетовый": "purple", "оранжевый": "orange",
+                "замени": "", "убери": "", "добавь": "", "измени": "",
+            }
             parts = prompt.split("|")
             if len(parts) == 2:
-                from_obj = parts[0].strip()
-                to_obj = parts[1].strip()
-                transformations.append(f"e_gen_replace:from_{from_obj};to_{to_obj}")
+                from_raw = parts[0].strip().lower()
+                to_raw = parts[1].strip().lower()
+                from_obj = RU_TO_EN.get(from_raw, from_raw)
+                to_obj = RU_TO_EN.get(to_raw, to_raw)
+                from_obj = "".join(c for c in from_obj if c.isascii() and c.isalnum())
+                to_obj = "".join(c for c in to_obj if c.isascii() and c.isalnum())
+                if from_obj and to_obj:
+                    transformations.append(f"e_gen_replace:from_{from_obj};to_{to_obj}")
+                else:
+                    return None
             else:
-                transformations.append(f"e_gen_replace:from_{prompt};to_{prompt}")
+                return None
 
         elif edit_type == "crop":
             transformations.append(f"c_fill,w_{width},h_{height}")

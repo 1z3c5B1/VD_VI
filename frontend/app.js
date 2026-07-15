@@ -347,7 +347,7 @@ function switchEditType(type) {
         promptGroup.classList.add('hidden');
     } else if (type === 'replace_object') {
         promptGroup.classList.remove('hidden');
-        promptInput.placeholder = 'объект|новый объект (напр. bike|airplane)';
+        promptInput.placeholder = 'dog|cat или собака|кот';
     } else if (type === 'crop') {
         promptGroup.classList.add('hidden');
     } else if (type === 'resize') {
