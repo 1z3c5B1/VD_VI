@@ -619,12 +619,16 @@ async def index():
 
 @app.get("/style.css")
 async def style():
-    return FileResponse(str(FRONTEND_DIR / "style.css"))
+    from fastapi.responses import Response
+    content = (FRONTEND_DIR / "style.css").read_text(encoding="utf-8")
+    return Response(content=content, media_type="text/css", headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
 
 
 @app.get("/app.js")
 async def script():
-    return FileResponse(str(FRONTEND_DIR / "app.js"))
+    from fastapi.responses import Response
+    content = (FRONTEND_DIR / "app.js").read_text(encoding="utf-8")
+    return Response(content=content, media_type="application/javascript", headers={"Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache"})
 
 
 @app.get("/favicon.ico")
