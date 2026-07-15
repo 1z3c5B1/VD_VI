@@ -241,37 +241,7 @@ async def _edit_image(image_bytes: bytes, edit_type: str, prompt: str, width: in
                 print(f"[Edit] Saved: {filename}")
                 return {"url": f"/static/generated/{filename}", "filename": filename}
 
-        if edit_type == "custom" and prompt:
-            en_prompt = prompt
-            ru_map = {
-                "черн": "black and white", "чёрн": "black and white", "чорн": "black and white",
-                "сделай": "make it", "добавь": "add", "убери": "remove",
-                "измени": "change", "замени": "replace", "ярк": "bright",
-                "тёмн": "dark", "закат": "sunset", "космос": "space",
-                "океан": "ocean", "лес": "forest", "город": "city",
-            }
-            lower = prompt.lower()
-            for ru, en in ru_map.items():
-                if ru in lower:
-                    en_prompt = f"edit this image: {prompt}. Keep the original image and only apply the requested change."
-                    break
-
-            encoded_prompt = urllib.parse.quote(en_prompt)
-            result_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=klein&image={urllib.parse.quote(cld_url)}&width={width}&height={height}&seed={int(uuid.uuid4().int % 999999)}"
-
-            print(f"[Edit] Pollinations AI: {edit_type}")
-            resp = await asyncio.to_thread(requests.get, result_url, timeout=120)
-            print(f"[Edit] Pollinations: {resp.status_code}, {len(resp.content)} bytes")
-
-            if resp.status_code == 200 and "image" in resp.headers.get("content-type", "") and len(resp.content) > 1000:
-                filename = f"edit_{uuid.uuid4().hex}.png"
-                filepath = STATIC_DIR / filename
-                with open(filepath, "wb") as f:
-                    f.write(resp.content)
-                print(f"[Edit] Saved: {filename}")
-                return {"url": f"/static/generated/{filename}", "filename": filename}
-
-        print(f"[Edit] Failed")
+        print(f"[Edit] Failed: unknown edit_type={edit_type}")
         return None
 
     except Exception as e:

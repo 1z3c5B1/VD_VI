@@ -168,7 +168,7 @@
                         <button class="btn btn-small" onclick="clearEditFile()">✕ Убрать</button>
                     </div>
                     <div class="form-group">
-                        <label>Базовые эффекты</label>
+                        <label>Эффекты</label>
                         <div class="edit-type-buttons">
                             <button class="edit-type-btn" data-type="grayscale" onclick="editImageType('grayscale')">
                                 <span>⬛</span> Ч/Б
@@ -197,11 +197,13 @@
                             <button class="edit-type-btn" data-type="oil_paint" onclick="editImageType('oil_paint')">
                                 <span>🎨</span> Картина
                             </button>
+                            <button class="edit-type-btn" data-type="art_zorro" onclick="editImageType('art_zorro')">
+                                <span>✏</span> Эскиз
+                            </button>
+                            <button class="edit-type-btn" data-type="vignette" onclick="editImageType('vignette')">
+                                <span>◉</span> Виньетка
+                            </button>
                         </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="editPrompt">Или опиши что изменить (ИИ)</label>
-                        <textarea id="editPrompt" rows="2" placeholder="сделай закат, добавь небо, замени фон...">сделай закат</textarea>
                     </div>
                     <button class="btn btn-primary btn-full" id="editImageBtn" onclick="editImage()">
                         ✎ Применить
