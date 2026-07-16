@@ -456,6 +456,83 @@ async def crypto_webhook(secret: str, request_body: dict = None):
     return {"ok": True}
 
 
+def _confirm_payment(payment_id):
+    conn = _get_db_from_auth()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM payments WHERE id = %s AND status = 'pending'", (payment_id,))
+        payment = cur.fetchone()
+        if not payment:
+            return
+
+        import secrets as sec
+        if payment.get("method") == "pro":
+            promo_code = f"PRO-{sec.token_hex(4).upper()}"
+            cur.execute("UPDATE payments SET status = 'done' WHERE id = %s", (payment_id,))
+            cur.execute("UPDATE users SET pro = 1, pro_expires = '' WHERE id = %s", (payment["user_id"],))
+            cur.execute(
+                "INSERT INTO promo_codes (code, type, value, duration, used_by, created_at) VALUES (%s, 'pro', 0, '', 0, %s)",
+                (promo_code, datetime.now().isoformat())
+            )
+        else:
+            coins = payment.get("coins", payment.get("amount", 0) * 2)
+            promo_code = f"VD-{sec.token_hex(4).upper()}"
+            cur.execute("UPDATE payments SET status = 'done' WHERE id = %s", (payment_id,))
+            cur.execute("UPDATE users SET coins = coins + %s WHERE id = %s", (coins, payment["user_id"]))
+            cur.execute(
+                "INSERT INTO promo_codes (code, type, value, duration, used_by, created_at) VALUES (%s, 'coins', %s, '', 0, %s)",
+                (promo_code, coins, datetime.now().isoformat())
+            )
+
+        conn.commit()
+        print(f"[CryptoBot] Payment #{payment_id} confirmed! Promo: {promo_code}")
+        return promo_code
+    finally:
+        conn.close()
+
+
+@app.get("/api/crypto/check/{payment_id}")
+async def crypto_check_payment(payment_id: int, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    if not CRYPTOBOT_TOKEN:
+        raise HTTPException(status_code=503, detail="CryptoBot не подключён")
+
+    conn = _get_db_from_auth()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM payments WHERE id = %s AND user_id = %s", (payment_id, user["user_id"]))
+        payment = cur.fetchone()
+        if not payment:
+            raise HTTPException(status_code=404, detail="Платёж не найден")
+        if payment["status"] == "done":
+            return {"success": True, "status": "paid", "message": "Оплата подтверждена!"}
+    finally:
+        conn.close()
+
+    try:
+        import requests as req_lib
+        resp = req_lib.get(
+            f"https://pay.crypt.bot/api/getInvoices?invoice_ids={payment_id}&status=paid",
+            headers={"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN},
+            timeout=15,
+        )
+        data = resp.json()
+        if data.get("ok"):
+            items = data.get("result", {}).get("items", [])
+            for inv in items:
+                payload = inv.get("payload", "")
+                try:
+                    pid = int(payload)
+                except (ValueError, TypeError):
+                    continue
+                if pid == payment_id and inv.get("status") == "paid":
+                    promo_code = _confirm_payment(payment_id)
+                    return {"success": True, "status": "paid", "promo_code": promo_code}
+        return {"success": True, "status": "pending"}
+    except Exception as e:
+        return {"success": True, "status": "pending"}
+
+
 def _get_db_from_auth():
     from backend.auth import _get_db
     return _get_db()

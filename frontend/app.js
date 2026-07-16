@@ -1091,54 +1091,69 @@ async function submitPayment() {
     if (!email) return alert('Введите email');
 
     document.getElementById('paymentStep1').classList.add('hidden');
-    document.getElementById('paymentStep2').classList.remove('hidden');
+    document.getElementById('paymentStep3').classList.remove('hidden');
+
+    try {
+        const res = await fetch(`${API_BASE}/api/crypto/create-invoice`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                amount: currentPaymentAmount,
+                method: currentPaymentType,
+                email: email,
+            }),
+        });
+        const data = await res.json();
+
+        document.getElementById('paymentStep3').classList.add('hidden');
+
+        if (data.success && data.pay_url) {
+            document.getElementById('paymentStep4').classList.remove('hidden');
+            document.getElementById('paymentPromoCode').textContent = 'Ожидаем оплату...';
+            document.getElementById('paymentSuccessText').textContent = 'Откроется страница оплаты. После оплаты промокод появится автоматически!';
+            window.open(data.pay_url, '_blank');
+            pollPaymentStatus(data.payment_id);
+        } else {
+            document.getElementById('paymentStep1').classList.remove('hidden');
+            alert(data.detail || 'Ошибка создания платежа');
+        }
+    } catch (err) {
+        document.getElementById('paymentStep3').classList.add('hidden');
+        document.getElementById('paymentStep1').classList.remove('hidden');
+        alert('Ошибка: ' + err.message);
+    }
+}
+
+let _pollInterval = null;
+function pollPaymentStatus(paymentId) {
+    if (_pollInterval) clearInterval(_pollInterval);
+    let attempts = 0;
+    _pollInterval = setInterval(async () => {
+        attempts++;
+        if (attempts > 120) { clearInterval(_pollInterval); return; }
+        try {
+            const res = await fetch(`${API_BASE}/api/crypto/check/${paymentId}`, {
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+            const data = await res.json();
+            if (data.status === 'paid') {
+                clearInterval(_pollInterval);
+                document.getElementById('paymentPromoCode').textContent = data.promo_code || 'Проверьте историю';
+                document.getElementById('paymentSuccessText').textContent = 'Оплата подтверждена! Ваш промокод:';
+            }
+        } catch {}
+    }, 5000);
 }
 
 function confirmSmsCode() {
-    const code = document.getElementById('smsCode').value;
-    if (code.length < 4) return alert('Введите код из SMS');
-
-    document.getElementById('paymentStep2').classList.add('hidden');
-    document.getElementById('paymentStep3').classList.remove('hidden');
-
-    setTimeout(async () => {
-        try {
-            const res = await fetch(`${API_BASE}/api/shop/payment`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify({
-                    amount: currentPaymentAmount,
-                    method: 'card',
-                    email: document.getElementById('paymentEmail').value.trim(),
-                }),
-            });
-            const data = await res.json();
-
-            document.getElementById('paymentStep3').classList.add('hidden');
-            document.getElementById('paymentStep4').classList.remove('hidden');
-
-            if (currentPaymentType === 'pro') {
-                document.getElementById('paymentPromoCode').textContent = 'Ждите подтверждения...';
-                document.getElementById('paymentSuccessText').textContent = 'Заявка отправена! Промокод придёт на email после подтверждения.';
-            } else {
-                document.getElementById('paymentPromoCode').textContent = 'Ждите подтверждения...';
-                document.getElementById('paymentSuccessText').textContent = `Заявка #${data.payment_id || '?'} создана! ${currentPaymentCoins}💎 будут начислены после подтверждения.`;
-            }
-
-            loadShopHistory();
-        } catch (err) {
-            document.getElementById('paymentStep3').classList.add('hidden');
-            document.getElementById('paymentStep1').classList.remove('hidden');
-            alert('Ошибка: ' + err.message);
-        }
-    }, 2000);
+    alert('CryptoBot обрабатывает платёж автоматически');
 }
 
 function resendSms() {
-    alert('Код отправлен повторно');
+    alert('Платёж обрабатывается автоматически');
 }
 
 document.getElementById('paymentPromoCode')?.addEventListener('click', function() {
