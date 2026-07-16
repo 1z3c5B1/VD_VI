@@ -14,7 +14,7 @@ from typing import Optional
 
 from backend.models.image_generator import ImageGenerator
 from backend.models.video_generator import VideoGenerator
-from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK, HF_TOKEN, CLOUDINARY_CLOUD, CLOUDINARY_KEY, CLOUDINARY_SECRET
+from backend.config import OUTPUT_DIR, STATIC_DIR, BASE_DIR, POLLINATIONS_PK, HF_TOKEN, CLOUDINARY_CLOUD, CLOUDINARY_KEY, CLOUDINARY_SECRET, CRYPTOBOT_TOKEN, CRYPTOBOT_WEBHOOK_SECRET
 from backend.auth import (
     register, login, verify_token, deduct_coins, use_promo_code, is_admin, admin_login,
     admin_get_users, admin_get_promos, admin_create_promo, admin_delete_promo,
@@ -344,6 +344,121 @@ async def api_admin_payments(authorization: Optional[str] = Header(None)):
     token = authorization.replace("Bearer ", "") if authorization else ""
     payments = admin_get_payments(token)
     return {"success": True, "payments": payments}
+
+
+# ---- CryptoBot ----
+@app.post("/api/crypto/create-invoice")
+async def crypto_create_invoice(req: PaymentRequest, authorization: Optional[str] = Header(None)):
+    user = _require_auth(authorization)
+    if not CRYPTOBOT_TOKEN:
+        raise HTTPException(status_code=503, detail="CryptoBot не подключён. Используйте ручной перевод.")
+
+    coins = req.amount * 2 if req.method != "pro" else 0
+    description = "⭐ VD AI PRO навсегда" if req.method == "pro" else f"💎 {coins} VD Coins"
+
+    payment_result = create_payment(user["user_id"], req.amount, "cryptobot", req.email)
+    if not payment_result["success"]:
+        raise HTTPException(status_code=400, detail=payment_result.get("error", "Ошибка"))
+
+    payment_id = payment_result["payment_id"]
+
+    try:
+        import requests as req_lib
+        resp = req_lib.post(
+            "https://pay.crypt.bot/api/createInvoice",
+            headers={"Crypto-Pay-API-Token": CRYPTOBOT_TOKEN},
+            json={
+                "currency_type": "fiat",
+                "fiat": "RUB",
+                "amount": str(req.amount),
+                "description": description,
+                "payload": str(payment_id),
+                "paid_btn_name": "callback",
+                "paid_btn_url": "https://vd-ai.onrender.com",
+                "allow_comments": False,
+                "allow_anonymous": False,
+                "expires_in": 3600,
+            },
+            timeout=15,
+        )
+        data = resp.json()
+        if data.get("ok"):
+            invoice = data["result"]
+            return {
+                "success": True,
+                "payment_id": payment_id,
+                "pay_url": invoice.get("bot_invoice_url") or invoice.get("pay_url"),
+                "invoice_id": invoice["invoice_id"],
+            }
+        else:
+            raise HTTPException(status_code=502, detail=data.get("error", "CryptoBot API error"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Ошибка CryptoBot: {str(e)}")
+
+
+@app.post("/api/crypto/webhook/{secret}")
+async def crypto_webhook(secret: str, request_body: dict = None):
+    if secret != CRYPTOBOT_WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid secret")
+
+    body = await request.body()
+    import json
+    data = json.loads(body)
+
+    if data.get("update_type") != "invoice_paid":
+        return {"ok": True}
+
+    invoice = data.get("payload", {})
+    status = invoice.get("status")
+
+    if status != "paid":
+        return {"ok": True}
+
+    payload = invoice.get("payload", "")
+    try:
+        payment_id = int(payload)
+    except (ValueError, TypeError):
+        return {"ok": True}
+
+    conn = _get_db_from_auth()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM payments WHERE id = %s AND status = 'pending'", (payment_id,))
+        payment = cur.fetchone()
+        if not payment:
+            return {"ok": True}
+
+        import secrets as sec
+        if payment.get("method") == "pro":
+            promo_code = f"PRO-{sec.token_hex(4).upper()}"
+            cur.execute("UPDATE payments SET status = 'done' WHERE id = %s", (payment_id,))
+            cur.execute("UPDATE users SET pro = 1, pro_expires = '' WHERE id = %s", (payment["user_id"],))
+            cur.execute(
+                "INSERT INTO promo_codes (code, type, value, duration, used_by, created_at) VALUES (%s, 'pro', 0, '', 0, %s)",
+                (promo_code, datetime.now().isoformat())
+            )
+        else:
+            promo_code = f"VD-{sec.token_hex(4).upper()}"
+            cur.execute("UPDATE payments SET status = 'done' WHERE id = %s", (payment_id,))
+            cur.execute("UPDATE users SET coins = coins + %s WHERE id = %s", (payment["coins"], payment["user_id"]))
+            cur.execute(
+                "INSERT INTO promo_codes (code, type, value, duration, used_by, created_at) VALUES (%s, 'coins', %s, '', 0, %s)",
+                (promo_code, payment["coins"], datetime.now().isoformat())
+            )
+
+        conn.commit()
+        print(f"[CryptoBot] Payment #{payment_id} confirmed! Promo: {promo_code}")
+    finally:
+        conn.close()
+
+    return {"ok": True}
+
+
+def _get_db_from_auth():
+    from backend.auth import _get_db
+    return _get_db()
 
 
 @app.post("/api/register")
