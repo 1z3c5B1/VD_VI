@@ -37,6 +37,11 @@ cloudinary.config(
 
 app = FastAPI(title="VD AI")
 
+@app.on_event("startup")
+async def startup_init():
+    from backend.auth import _init_db
+    _init_db()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
