@@ -787,7 +787,7 @@ async function adminApprovePayment(paymentId) {
         });
         const data = await res.json();
         if (data.success) {
-            alert(`Оплата подтверждена! +${data.coins_added}💎`);
+            alert(`Оплата подтверждена!\n\nПромокод: ${data.promo_code}\nОтправь его пользователю.`);
         } else {
             alert(data.detail || 'Ошибка');
         }
@@ -1029,6 +1029,124 @@ function copyPaymentNumber(el) {
         setTimeout(() => { el.style.borderColor = ''; }, 1000);
     });
 }
+
+// ---- Payment Modal ----
+let currentPaymentType = 'coins';
+let currentPaymentAmount = 50;
+let currentPaymentCoins = 0;
+
+function openPaymentModal(type, amount) {
+    if (!authToken) return alert('Войдите чтобы оплатить');
+    currentPaymentType = type;
+    currentPaymentAmount = amount;
+    currentPaymentCoins = type === 'pro' ? 0 : amount * 2;
+
+    document.getElementById('paymentModalAmount').textContent = `${amount} ₽`;
+    document.getElementById('paySubmitAmount').textContent = `${amount} ₽`;
+
+    if (type === 'pro') {
+        document.getElementById('paymentModalDesc').textContent = '⭐ VD AI PRO навсегда';
+    } else {
+        document.getElementById('paymentModalDesc').textContent = `${currentPaymentCoins} 💎 VD Coins`;
+    }
+
+    document.getElementById('paymentStep1').classList.remove('hidden');
+    document.getElementById('paymentStep2').classList.add('hidden');
+    document.getElementById('paymentStep3').classList.add('hidden');
+    document.getElementById('paymentStep4').classList.add('hidden');
+    document.getElementById('paymentModal').classList.remove('hidden');
+
+    document.getElementById('cardNumber').value = '';
+    document.getElementById('cardExpiry').value = '';
+    document.getElementById('cardCvc').value = '';
+    document.getElementById('paymentEmail').value = '';
+    document.getElementById('smsCode').value = '';
+}
+
+function closePaymentModal() {
+    document.getElementById('paymentModal').classList.add('hidden');
+}
+
+function formatCardNumber(el) {
+    let v = el.value.replace(/\D/g, '');
+    v = v.replace(/(\d{4})(?=\d)/g, '$1 ');
+    el.value = v;
+}
+
+function formatExpiry(el) {
+    let v = el.value.replace(/\D/g, '');
+    if (v.length >= 2) v = v.substring(0, 2) + '/' + v.substring(2);
+    el.value = v;
+}
+
+async function submitPayment() {
+    const card = document.getElementById('cardNumber').value.replace(/\s/g, '');
+    const expiry = document.getElementById('cardExpiry').value;
+    const cvc = document.getElementById('cardCvc').value;
+    const email = document.getElementById('paymentEmail').value.trim();
+
+    if (card.length < 16) return alert('Введите номер карты');
+    if (expiry.length < 5) return alert('Введите срок действия');
+    if (cvc.length < 3) return alert('Введите CVC');
+    if (!email) return alert('Введите email');
+
+    document.getElementById('paymentStep1').classList.add('hidden');
+    document.getElementById('paymentStep2').classList.remove('hidden');
+}
+
+function confirmSmsCode() {
+    const code = document.getElementById('smsCode').value;
+    if (code.length < 4) return alert('Введите код из SMS');
+
+    document.getElementById('paymentStep2').classList.add('hidden');
+    document.getElementById('paymentStep3').classList.remove('hidden');
+
+    setTimeout(async () => {
+        try {
+            const res = await fetch(`${API_BASE}/api/shop/payment`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    amount: currentPaymentAmount,
+                    method: 'card',
+                    email: document.getElementById('paymentEmail').value.trim(),
+                }),
+            });
+            const data = await res.json();
+
+            document.getElementById('paymentStep3').classList.add('hidden');
+            document.getElementById('paymentStep4').classList.remove('hidden');
+
+            if (currentPaymentType === 'pro') {
+                document.getElementById('paymentPromoCode').textContent = 'Ждите подтверждения...';
+                document.getElementById('paymentSuccessText').textContent = 'Заявка отправена! Промокод придёт на email после подтверждения.';
+            } else {
+                document.getElementById('paymentPromoCode').textContent = 'Ждите подтверждения...';
+                document.getElementById('paymentSuccessText').textContent = `Заявка #${data.payment_id || '?'} создана! ${currentPaymentCoins}💎 будут начислены после подтверждения.`;
+            }
+
+            loadShopHistory();
+        } catch (err) {
+            document.getElementById('paymentStep3').classList.add('hidden');
+            document.getElementById('paymentStep1').classList.remove('hidden');
+            alert('Ошибка: ' + err.message);
+        }
+    }, 2000);
+}
+
+function resendSms() {
+    alert('Код отправлен повторно');
+}
+
+document.getElementById('paymentPromoCode')?.addEventListener('click', function() {
+    navigator.clipboard.writeText(this.textContent).then(() => {
+        this.style.borderColor = 'var(--success)';
+        setTimeout(() => { this.style.borderColor = ''; }, 1000);
+    });
+});
 
 async function createPayment() {
     if (!authToken) return alert('Войдите чтобы купить монеты');

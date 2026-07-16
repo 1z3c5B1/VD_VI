@@ -1215,3 +1215,184 @@ footer {
     border-radius: 12px;
     border: 1px solid var(--border);
 }
+
+/* PAYMENT MODAL */
+.payment-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.2s ease;
+}
+.payment-modal.hidden { display: none; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.payment-modal-content {
+    background: #1a1a2e;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 0;
+    width: 420px;
+    max-width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalIn 0.3s ease;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6);
+}
+@keyframes modalIn { from { transform: translateY(30px) scale(0.95); opacity: 0; } to { transform: none; opacity: 1; } }
+.payment-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+}
+.payment-modal-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 800;
+    font-size: 16px;
+    color: var(--accent);
+}
+.payment-modal-logo-icon { font-size: 20px; }
+.payment-modal-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 8px;
+    transition: var(--transition);
+}
+.payment-modal-close:hover { background: var(--surface2); color: var(--text); }
+.payment-modal-title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 20px 20px 0;
+}
+.payment-modal-amount {
+    text-align: center;
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--accent);
+    padding: 8px 20px 0;
+}
+.payment-modal-desc {
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 4px 20px 20px;
+}
+.payment-form {
+    padding: 0 20px 20px;
+}
+.payment-form-group {
+    margin-bottom: 14px;
+}
+.payment-form-group label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.payment-form-group input {
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 15px;
+    outline: none;
+    transition: var(--transition);
+    font-family: inherit;
+}
+.payment-form-group input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--glow);
+}
+.payment-form-group input::placeholder { color: var(--text-muted); opacity: 0.5; }
+.payment-form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+.payment-secure-note {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-muted);
+    padding: 10px;
+    background: rgba(64,224,128,0.05);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(64,224,128,0.1);
+    margin-bottom: 14px;
+}
+.payment-sms-icon {
+    text-align: center;
+    font-size: 48px;
+    padding: 20px 0 10px;
+}
+.payment-sms-text {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 0 20px;
+}
+.payment-sms-resend {
+    text-align: center;
+    color: var(--accent);
+    font-size: 12px;
+    cursor: pointer;
+    margin-top: 12px;
+}
+.payment-sms-resend:hover { text-decoration: underline; }
+.payment-processing-text {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 20px;
+}
+.payment-success-icon {
+    text-align: center;
+    font-size: 64px;
+    padding: 20px 0 10px;
+}
+.payment-success-text {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 0 20px;
+}
+.payment-promo-display {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--accent);
+    background: var(--surface2);
+    border: 2px dashed var(--accent);
+    border-radius: var(--radius-sm);
+    padding: 16px;
+    margin: 16px 20px;
+    cursor: pointer;
+    letter-spacing: 2px;
+    transition: var(--transition);
+}
+.payment-promo-display:hover {
+    background: rgba(110,80,240,0.1);
+    box-shadow: 0 0 20px var(--glow);
+}
+.payment-success-sub {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 0 20px 16px;
+}

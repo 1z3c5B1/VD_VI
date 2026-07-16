@@ -436,9 +436,24 @@ def admin_approve_payment(token: str, payment_id: int) -> dict:
             return {"success": False, "error": "Already processed"}
 
         cur.execute("UPDATE payments SET status = 'done' WHERE id = %s", (payment_id,))
-        cur.execute("UPDATE users SET coins = coins + %s WHERE id = %s", (payment["coins"], payment["user_id"]))
+
+        if payment.get("method") == "pro":
+            cur.execute("UPDATE users SET pro = 1, pro_expires = '' WHERE id = %s", (payment["user_id"],))
+            promo_code = f"PRO-{secrets.token_hex(4).upper()}"
+            cur.execute(
+                "INSERT INTO promo_codes (code, type, value, duration, used_by, created_at) VALUES (%s, 'pro', 0, '', 0, %s)",
+                (promo_code, datetime.now().isoformat())
+            )
+        else:
+            cur.execute("UPDATE users SET coins = coins + %s WHERE id = %s", (payment["coins"], payment["user_id"]))
+            promo_code = f"VD-{secrets.token_hex(4).upper()}"
+            cur.execute(
+                "INSERT INTO promo_codes (code, type, value, duration, used_by, created_at) VALUES (%s, 'coins', %s, '', 0, %s)",
+                (promo_code, payment["coins"], datetime.now().isoformat())
+            )
+
         conn.commit()
-        return {"success": True, "coins_added": payment["coins"]}
+        return {"success": True, "coins_added": payment.get("coins", 0), "promo_code": promo_code}
     finally:
         conn.close()
 

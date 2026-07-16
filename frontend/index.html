@@ -451,16 +451,9 @@
                             <li>✦ Безлимитный чат с GPT, Claude, Mistral, Gemini, Llama</li>
                             <li>✦ Все будущие функции</li>
                         </ul>
-
-                        <div class="payment-detail-card" style="text-align:left">
-                            <h4>Как купить PRO?</h4>
-                            <p>1. Переведи <b>15 ₽</b> на номер:</p>
-                            <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
-                            <p class="payment-comment">Получатель: <b>Вадим В.</b> (QPLUS)</p>
-                            <p>2. В комментарии напиши: <b>PRO-ТВОЙНИК</b></p>
-                            <p>3. Промокод придёт на <b>email</b> или в <b>Discord</b></p>
-                            <p>4. Активируй промокод ниже</p>
-                        </div>
+                        <button class="btn btn-primary btn-full" onclick="openPaymentModal('pro', 15)">
+                            ⭐ Купить PRO — 15 ₽
+                        </button>
                     </div>
                 </div>
 
@@ -484,86 +477,15 @@
 
                         <div class="quick-amounts">
                             <button class="quick-amount-btn" onclick="setShopAmount(10)">10 ₽</button>
-                            <button class="quick-amount-btn" onclick="setShopAmount(50)">50 ₽</button>
+                            <button class="quick-amount-btn active" onclick="setShopAmount(50)">50 ₽</button>
                             <button class="quick-amount-btn" onclick="setShopAmount(100)">100 ₽</button>
                             <button class="quick-amount-btn" onclick="setShopAmount(200)">200 ₽</button>
                             <button class="quick-amount-btn" onclick="setShopAmount(500)">500 ₽</button>
                         </div>
 
-                        <div class="form-group">
-                            <label>Способ оплаты</label>
-                            <div class="payment-methods">
-                                <button class="payment-method-btn active" data-method="sbp" onclick="selectPayment('sbp')">
-                                    <span class="pm-icon">📱</span>
-                                    <span>СБП</span>
-                                    <span class="pm-hint">Мгновенно</span>
-                                </button>
-                                <button class="payment-method-btn" data-method="card" onclick="selectPayment('card')">
-                                    <span class="pm-icon">💳</span>
-                                    <span>Карта</span>
-                                    <span class="pm-hint">Перевод</span>
-                                </button>
-                            </div>
-                        </div>
-
-                        <div id="paymentDetails">
-                            <div class="payment-info" id="paymentSbp">
-                                <div class="payment-detail-card">
-                                    <div class="secure-badge">🔒 Безопасная оплата</div>
-                                    <h4>📱 Перевод по СБП</h4>
-                                    <p>Переведи <b id="sbpAmount">50 ₽</b> на номер:</p>
-                                    <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">+79097884730</div>
-                                    <p class="payment-comment">Комментарий: <b id="sbpComment">VD-USER</b></p>
-                                    <div class="payment-steps">
-                                        <p>1. Открой приложение банка</p>
-                                        <p>2. Выбери «Перевод по СБП»</p>
-                                        <p>3. Введи номер и сумму</p>
-                                        <p>4. В комментарии укажи: <b id="sbpComment2">VD-USER</b></p>
-                                        <p>5. Нажми «Оплатить»</p>
-                                    </div>
-                                    <div class="security-footer">
-                                        <span>🔒 Данные защищены</span>
-                                        <span>⚡ Мгновенно</span>
-                                        <span>✅ Без комиссии</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="payment-info hidden" id="paymentCard">
-                                <div class="payment-detail-card">
-                                    <div class="secure-badge">🔒 Безопасная оплата</div>
-                                    <h4>💳 Перевод на карту</h4>
-                                    <p>Переведи <b id="cardAmount">50 ₽</b> на карту:</p>
-                                    <div class="payment-number" onclick="copyPaymentNumber(this)" title="Нажми чтобы скопировать">2202 2023 **** 4567</div>
-                                    <p class="payment-comment">Получатель: <b>Вадим В.</b></p>
-                                    <p class="payment-note">Перевод обрабатывается до 5 минут</p>
-                                    <div class="security-footer">
-                                        <span>🔒 Шифрование TLS</span>
-                                        <span>🛡 3D Secure</span>
-                                        <span>✅ Проверка банком</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="shopEmail">Email (куда отправить подтверждение)</label>
-                            <input type="email" id="shopEmail" placeholder="your@email.com">
-                        </div>
-
-                        <button class="btn btn-primary btn-full" onclick="createPayment()">
-                            💰 Оплатить <span id="payBtnAmount">50 ₽</span>
+                        <button class="btn btn-primary btn-full" onclick="openPaymentModal('coins', parseInt(document.getElementById('shopAmount').value) || 50)">
+                            💎 Перейти к оплате
                         </button>
-
-                        <div class="security-badges-row">
-                            <div class="sec-badge">🔒 SSL/TLS</div>
-                            <div class="sec-badge">🛡 Шифрование</div>
-                            <div class="sec-badge">✓ Безопасность</div>
-                        </div>
-
-                        <div class="shop-note">
-                            <p>⚡ Монеты начисляются в течение 5 минут после подтверждения</p>
-                            <p>❓ Вопросы? Discord: <b>1z3c5B2</b></p>
-                        </div>
                     </div>
                 </div>
 
@@ -592,6 +514,86 @@
                 </div>
             </div>
         </section>
+
+        <!-- PAYMENT MODAL (Sber-style) -->
+        <div id="paymentModal" class="payment-modal hidden">
+            <div class="payment-modal-content">
+                <div class="payment-modal-header">
+                    <div class="payment-modal-logo">
+                        <span class="payment-modal-logo-icon">◆</span>
+                        <span>VD AI</span>
+                    </div>
+                    <button class="payment-modal-close" onclick="closePaymentModal()">✕</button>
+                </div>
+
+                <!-- Step 1: Payment Form -->
+                <div id="paymentStep1">
+                    <div class="payment-modal-title">Оплата</div>
+                    <div class="payment-modal-amount" id="paymentModalAmount">50 ₽</div>
+                    <div class="payment-modal-desc" id="paymentModalDesc">100 💎 VD Coins</div>
+
+                    <div class="payment-form">
+                        <div class="payment-form-group">
+                            <label>Номер карты</label>
+                            <input type="text" id="cardNumber" placeholder="0000 0000 0000 0000" maxlength="19" oninput="formatCardNumber(this)">
+                        </div>
+                        <div class="payment-form-row">
+                            <div class="payment-form-group">
+                                <label>Срок</label>
+                                <input type="text" id="cardExpiry" placeholder="MM/YY" maxlength="5" oninput="formatExpiry(this)">
+                            </div>
+                            <div class="payment-form-group">
+                                <label>CVC</label>
+                                <input type="password" id="cardCvc" placeholder="•••" maxlength="3">
+                            </div>
+                        </div>
+                        <div class="payment-form-group">
+                            <label>Email (куда отправить промокод)</label>
+                            <input type="email" id="paymentEmail" placeholder="your@email.com">
+                        </div>
+
+                        <div class="payment-secure-note">
+                            🔒 Данные защищены шифрованием TLS 1.3. Мы НЕ храним данные карт.
+                        </div>
+
+                        <button class="btn btn-primary btn-full" id="paySubmitBtn" onclick="submitPayment()">
+                            Оплатить <span id="paySubmitAmount">50 ₽</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Waiting for SMS -->
+                <div id="paymentStep2" class="hidden">
+                    <div class="payment-modal-title">Подтверждение</div>
+                    <div class="payment-sms-icon">📱</div>
+                    <p class="payment-sms-text">На ваш телефон отправлен SMS-код</p>
+                    <div class="payment-form-group" style="max-width:200px;margin:16px auto">
+                        <input type="text" id="smsCode" placeholder="Код из SMS" maxlength="6" style="text-align:center;font-size:24px;letter-spacing:8px;padding:14px">
+                    </div>
+                    <button class="btn btn-primary btn-full" onclick="confirmSmsCode()">
+                        Подтвердить
+                    </button>
+                    <p class="payment-sms-resend" onclick="resendSms()">Отправить код повторно</p>
+                </div>
+
+                <!-- Step 3: Processing -->
+                <div id="paymentStep3" class="hidden">
+                    <div class="payment-modal-title">Обработка...</div>
+                    <div class="spinner" style="margin:30px auto"></div>
+                    <p class="payment-processing-text">Проверяем оплату...</p>
+                </div>
+
+                <!-- Step 4: Success -->
+                <div id="paymentStep4" class="hidden">
+                    <div class="payment-success-icon">✅</div>
+                    <div class="payment-modal-title" style="color:var(--success)">Оплата прошла!</div>
+                    <p class="payment-success-text" id="paymentSuccessText">Ваш промокод:</p>
+                    <div class="payment-promo-display" id="paymentPromoCode">VD-ABC123</div>
+                    <p class="payment-success-sub">Скопируй и активируй во вкладке «Промокод»</p>
+                    <button class="btn btn-primary btn-full" onclick="closePaymentModal()">Готово</button>
+                </div>
+            </div>
+        </div>
 
         <!-- TAB: Admin -->
         <section id="tab-admin" class="tab-content">
