@@ -37,10 +37,29 @@ cloudinary.config(
 
 app = FastAPI(title="VD AI")
 
-@app.on_event("startup")
-async def startup_init():
-    from backend.auth import _init_db
-    _init_db()
+try:
+    import psycopg2 as _pg
+    _conn = _pg.connect(
+        "postgresql://neondb_owner:npg_F4z0ptYdlReZ@ep-young-bird-ai80pckg.c-4.us-east-1.aws.neon.tech/neondb?sslmode=require"
+    )
+    _cur = _conn.cursor()
+    _cur.execute("""
+        CREATE TABLE IF NOT EXISTS payments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER,
+            amount INTEGER,
+            coins INTEGER,
+            method TEXT DEFAULT 'sbp',
+            status TEXT DEFAULT 'pending',
+            email TEXT DEFAULT '',
+            created_at TEXT
+        )
+    """)
+    _conn.commit()
+    _conn.close()
+    print("[INIT] payments table ensured")
+except Exception as e:
+    print(f"[INIT] payments table error: {e}")
 
 app.add_middleware(
     CORSMiddleware,
