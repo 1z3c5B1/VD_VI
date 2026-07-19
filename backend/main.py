@@ -101,7 +101,7 @@ class VideoRequest(BaseModel):
     duration: int = Field(default=6, ge=2, le=120)
     fps: int = Field(default=10, ge=8, le=15)
     model: str = "ltx-2"
-    image_url: Optional[str] = None
+    image: Optional[str] = None
 
 
 class ChatRequest(BaseModel):
@@ -308,6 +308,7 @@ async def generate_video(req: VideoRequest, authorization: Optional[str] = Heade
             duration=req.duration,
             fps=req.fps,
             model=req.model,
+            image_b64=req.image,
         )
         if result:
             result["coins"] = coin_result.get("coins", 0)

@@ -17,5 +17,7 @@ CLOUDINARY_SECRET = os.environ.get("CLOUDINARY_SECRET", "YlDFDkUqeYhf0cl5HZvKpTg
 CRYPTOBOT_TOKEN = os.environ.get("CRYPTOBOT_TOKEN", "610030:AA39u07M04XJkteg5jBhraQOLupAAWyzTTu")
 CRYPTOBOT_WEBHOOK_SECRET = os.environ.get("CRYPTOBOT_WEBHOOK_SECRET", "vdai_pay_2026_secret")
 
+VIDEO_API_URL = os.environ.get("VIDEO_API_URL", "")
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(STATIC_DIR, exist_ok=True)
